@@ -1,8 +1,8 @@
 """The main window: the toolbar, the filter row and the ticket table.
 
-Phase 4 wires everything except the ticket dialog, which arrives in Phase 5. The
-actions that need it are present and disabled rather than absent, so the layout
-does not shift when they start working.
+Every action goes through the ``TicketManager``, which saves as it goes. The
+window holds no ticket state of its own: it asks the manager for the list, hands
+it to the table model, and asks again after anything changes.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
+    QDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -31,6 +32,7 @@ from workflowapp.core.manager import TicketManager
 from workflowapp.core.models import Status, Ticket
 
 from . import strings, theme
+from .ticket_dialog import TicketDialog
 from .widgets.status_badge import StatusDelegate, status_icon
 from .widgets.ticket_table import (
     TICKET_ID_ROLE,
@@ -73,10 +75,12 @@ class MainWindow(QMainWindow):
         self.action_new = QAction(strings.ACTION_NEW, self)
         self.action_new.setToolTip(strings.ACTION_NEW_TIP)
         self.action_new.setShortcut(QKeySequence.StandardKey.New)
+        self.action_new.triggered.connect(self.create_ticket)
         toolbar.addAction(self.action_new)
 
         self.action_edit = QAction(strings.ACTION_EDIT, self)
         self.action_edit.setToolTip(strings.ACTION_EDIT_TIP)
+        self.action_edit.triggered.connect(self.edit_selected)
         toolbar.addAction(self.action_edit)
 
         self.action_delete = QAction(strings.ACTION_DELETE, self)
@@ -203,6 +207,44 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------- actions
 
+    def create_ticket(self) -> None:
+        dialog = TicketDialog(None, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        draft = dialog.draft()
+        with self._reporting_errors():
+            ticket = self._manager.add_ticket(
+                title=draft.title,
+                description=draft.description,
+                status=draft.status,
+                due_date=draft.due_date,
+                activities=draft.activities,
+            )
+            self.refresh()
+            self.select_ticket(ticket.id)
+
+    def edit_selected(self) -> None:
+        ticket = self.selected_ticket()
+        if ticket is None:
+            return
+
+        dialog = TicketDialog(ticket, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        draft = dialog.draft()
+        with self._reporting_errors():
+            # One update rather than a call per field: update_ticket touches the
+            # timestamp and saves once, so a five-field edit is one write.
+            self._manager.update_ticket(
+                ticket.id,
+                title=draft.title,
+                description=draft.description,
+                status=draft.status,
+                due_date=draft.due_date,
+                activities=draft.activities,
+            )
+            self.refresh()
+
     def delete_selected(self) -> None:
         ticket = self.selected_ticket()
         if ticket is None:
@@ -250,8 +292,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------- private
 
     def _on_double_click(self, index: QModelIndex) -> None:
-        # Wired to the detail dialog in Phase 5.
         del index
+        self.edit_selected()
 
     def _on_filter_changed(self) -> None:
         self._proxy.set_text_filter(self._search.text())

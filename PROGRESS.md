@@ -2,10 +2,11 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Phase 4 complete. The application runs, lists tickets, filters, sorts, deletes
-and switches theme. Creating and editing are not wired yet - that is Phase 5.
+**Current state:** Phase 5 complete. The application is feature-complete against `docs/prompt.md`
+- create, edit, delete, activities, statuses, deadlines, filtering, sorting, both themes, all
+persisted.
 
-**Next:** Phase 5 - the ticket dialog and the rest of the CRUD.
+**Next:** Phase 6 - polish and the final manual verification pass.
 
 ## Phase 1 - Setup
 
@@ -98,12 +99,34 @@ Decided while building it:
 
 ## Phase 5 - Ticket dialog and CRUD
 
-Branch `phase/5-ticket-dialog`.
+Branch `phase/5-ticket-dialog`. Tag `v0.5.0-phase5`.
 
-- [ ] `gui/widgets/activity_list.py` - the checkable list with add and remove
-- [ ] `gui/ticket_dialog.py` - one dialog in new and edit modes, optional due date
-- [ ] Create, edit, delete and status change wired through the manager
-- [ ] Confirmation before discarding edits and before deleting
+- [x] `gui/widgets/activity_list.py` - the checkable list with add and remove
+- [x] `gui/ticket_dialog.py` - one dialog in new and edit modes, optional due date
+- [x] Create, edit, delete and status change wired through the manager
+- [x] Confirmation before discarding edits and before deleting
+- [x] Double-click opens the detail dialog; an empty title is refused
+
+Decided while building it:
+
+- **The dialog returns a `TicketDraft`, it does not edit the ticket.** Cancel cannot cancel
+  anything if the form has been mutating the live object as the user types. The activity list
+  copies its `Activity` objects for the same reason.
+- **`_dirty` is reset at the end of `__init__`.** Populating the fields fires the same signals
+  typing does, so without the reset the dialog opens already believing it was edited and asks
+  about discarding changes nobody made.
+- **An activity whose text was cleared is dropped on save.** A row the user emptied is not an
+  activity, and keeping it would write a nameless entry into the file.
+- **Editing is one `update_ticket` call, not one per field**, so a five-field edit is one
+  timestamp bump and one write.
+
+Learned while testing it:
+
+- **`QDialog.result()` is `Rejected` from construction**, because `Rejected` is 0. Asserting on it
+  to check "did cancelling cancel?" passes before anything happens. The tests assert on
+  `isVisible()` instead.
+- **`hasFocus()` is unobservable under `QT_QPA_PLATFORM=offscreen`** - there is no active window to
+  hold focus - so it is not something the suite can check.
 
 ## Phase 6 - Tests and polish
 

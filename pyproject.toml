@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workflowapp"
-version = "0.4.0"
+version = "0.5.0"
 description = "Gestore personale di ticket e attivita per Windows"
 readme = "README.md"
 # 3.11 rather than 3.10: tomllib is in the standard library from 3.11, and
