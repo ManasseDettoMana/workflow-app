@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Environments
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Application data. tickets.json lives under %APPDATA%, but WORKFLOWAPP_DATA_DIR
+# can point it at the working tree, and a personal ticket list is not source.
+tickets.json
+tickets.json.corrupt-*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Windows
+Thumbs.db
+desktop.ini
