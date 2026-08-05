@@ -2,9 +2,9 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Phase 1 complete. The repository, tooling and CI exist; no application code yet.
+**Current state:** Phase 2 complete. The data layer exists and is tested; no interface yet.
 
-**Next:** Phase 2 - the data model and the JSON store.
+**Next:** Phase 3 - `TicketManager`, the business logic between the interface and the store.
 
 ## Phase 1 - Setup
 
@@ -21,15 +21,30 @@ Branch `phase/1-setup`. Tag `v0.1.0-phase1`.
 
 ## Phase 2 - Data model and persistence
 
-Branch `phase/2-model-persistence`.
+Branch `phase/2-model-persistence`. Tag `v0.2.0-phase2`.
 
-- [ ] `core/errors.py` - `WorkflowAppError` with a user-safe message and an optional hint
-- [ ] `core/models.py` - `Status`, `Activity`, `Ticket`, each with `to_dict`/`from_dict`
-- [ ] `core/paths.py` - `%APPDATA%\WorkflowApp`, the `WORKFLOWAPP_DATA_DIR` override, the
+- [x] `core/errors.py` - `WorkflowAppError` with a user-safe message and an optional hint
+- [x] `core/models.py` - `Status`, `Activity`, `Ticket`, each with `to_dict`/`from_dict`
+- [x] `core/paths.py` - `%APPDATA%\WorkflowApp`, the `WORKFLOWAPP_DATA_DIR` override, the
       non-Windows fallback
-- [ ] `core/store.py` - `load_tickets`/`save_tickets`, atomic write, schema version, corrupt-file
+- [x] `core/store.py` - `load_tickets`/`save_tickets`, atomic write, schema version, corrupt-file
       quarantine
-- [ ] Tests: round-trip, atomic write, missing file, corrupt file, unknown status token
+- [x] Tests: round-trip, atomic write, missing file, corrupt file, unknown status token
+- [x] `tests/conftest.py` isolates the data directory for the whole session, so a test that
+      forgets its `tmp_path` cannot reach the real ticket file
+
+Decided while building it:
+
+- **`WorkflowAppError` messages are written in Italian, inside `core`.** Invariant 9 was amended
+  to say so explicitly rather than left to be discovered. An error only makes sense next to the
+  thing that failed, and a code table buys a second language this application does not have.
+- **A file from a newer schema is refused but not quarantined.** It is not corrupt - it is good
+  data this version cannot read - and moving it aside would be the destructive act the invariant
+  exists to prevent. Only unparseable content is moved.
+- **`Ticket.is_overdue` is false for a done ticket**, whatever its due date was, or every finished
+  ticket stays marked late for ever.
+- **`Status.priority` orders the list Urgente, In Lavorazione, Aperto, Fatto**, which is not the
+  lifecycle order the enum is declared in.
 
 ## Phase 3 - Business logic
 

@@ -100,9 +100,16 @@ These are not style preferences. Breaking them loses a user's tickets or mislead
 7. **Nothing that discards a user's edits happens silently.** Cancelling a dialog with unsaved
    changes asks first, and so does deleting a ticket.
 8. **No emojis** anywhere - UI, code, comments, docs or commit messages.
-9. **Code, comments, docstrings and documentation in English. Every user-visible string in
-   Italian, and defined in `gui/strings.py`.** A literal Italian string anywhere else is a bug:
-   one file is what makes "is all of the UI actually Italian?" a question with an answer.
+9. **Code, comments, docstrings and documentation in English. Every string the user reads in
+   Italian.** Interface text - labels, buttons, column headings, confirmations - is defined in
+   `gui/strings.py`, and a literal Italian string among the widgets is a bug: one file is what
+   makes "is all of the UI actually Italian?" a question with an answer.
+
+   The messages carried by `WorkflowAppError` are the **one deliberate exception**: they are
+   written in Italian at the point they are raised, inside `core/`. An error message only makes
+   sense next to the thing that failed, and routing them through a code table - which is what
+   `../dynamic-reader` does - buys a second language this application does not have. If a second
+   language is ever wanted, that indirection is the change to make, and it is confined to `core`.
 
 ## Decisions, and what they overrode
 
