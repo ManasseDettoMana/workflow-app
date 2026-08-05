@@ -144,8 +144,17 @@ These are not style preferences. Breaking them loses a user's tickets or mislead
   fine from a source checkout and are missing from an installed build, where the application
   starts unstyled with nothing to say why.
 - **`QSettings` on Windows writes to the registry**, under `HKCU\Software\ManasseDettoMana\
-  WorkflowApp`. It is not a file in the data directory, so `WORKFLOWAPP_DATA_DIR` does not isolate
-  it; GUI tests that touch the theme must set `QSettings` to `IniFormat` in a `tmp_path` instead.
+  Workflow App`. It is not a file in the data directory, so `WORKFLOWAPP_DATA_DIR` does not
+  isolate it. `tests/conftest.py` switches the default format to `IniFormat` under a scratch
+  directory for the whole session, which is what stops a test rewriting your own saved theme and
+  window position.
+- **PySide6 6.11 marks every `invalidate*Filter` variant deprecated** - `invalidateFilter`,
+  `invalidateRowsFilter`, `invalidateColumnsFilter`. Plain `invalidate()` is the one that is not.
+  `pyproject.toml` turns a `DeprecationWarning` raised from `workflowapp` into an error, so the
+  next one of these fails the suite rather than scrolling past in the warnings summary.
+- **A `QPainter` must be `end()`ed before the `QPixmap` it drew into is used.** Returning the
+  pixmap while the painter is still alive produces a warning on every repaint, and the icon is
+  intermittently blank.
 - **The floor is Python 3.11, not 3.10**, for `tomllib` in the standard library and a
   `date.fromisoformat` that is not strict about the exact `YYYY-MM-DD` spelling. Dates are still
   written with `isoformat()` so the stored form is canonical whatever reads it.

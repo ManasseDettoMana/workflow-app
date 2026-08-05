@@ -2,10 +2,10 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Phase 3 complete. The whole headless half of the application works and is
-tested. Nothing on screen yet.
+**Current state:** Phase 4 complete. The application runs, lists tickets, filters, sorts, deletes
+and switches theme. Creating and editing are not wired yet - that is Phase 5.
 
-**Next:** Phase 4 - the GUI shell: the window, the ticket table and the themes.
+**Next:** Phase 5 - the ticket dialog and the rest of the CRUD.
 
 ## Phase 1 - Setup
 
@@ -71,14 +71,30 @@ Decided while building it:
 
 ## Phase 4 - GUI shell
 
-Branch `phase/4-gui-shell`.
+Branch `phase/4-gui-shell`. Tag `v0.4.0-phase4`.
 
-- [ ] `gui/strings.py` - every Italian string
-- [ ] `gui/theme.py` and `gui/themes/*.qss` - light and dark, per-theme status palettes, the
+- [x] `gui/strings.py` - every Italian string
+- [x] `gui/theme.py` and `gui/themes/*.qss` - light and dark, per-theme status palettes, the
       preference in `QSettings`
-- [ ] `gui/widgets/status_badge.py` - the runtime-painted coloured tag and its delegate
-- [ ] `gui/widgets/ticket_table.py` - the table model and the sort proxy
-- [ ] `gui/main_window.py`, `gui/app.py`, `__main__.py` - the window runs and lists tickets
+- [x] `gui/widgets/status_badge.py` - the runtime-painted coloured tag and its delegate
+- [x] `gui/widgets/ticket_table.py` - the table model and the sort proxy
+- [x] `gui/main_window.py`, `gui/app.py`, `__main__.py` - the window runs and lists tickets
+- [x] Search box, status filter, status bar with the visible/total count and the overdue count
+- [x] Delete with confirmation; window geometry remembered
+
+Decided while building it:
+
+- **Anything acting on the selection reads `TICKET_ID_ROLE`, never the row number.** With a sort
+  proxy between the view and the model those are different numbers, and confusing them deletes the
+  wrong ticket while looking like data corruption. `test_deleting_the_right_ticket_after_sorting`
+  is the guard.
+- **Status colours are a Python palette per theme, not QSS.** A delegate paints them and a
+  stylesheet cannot reach inside one - and the amber that reads on white is nearly invisible on
+  dark grey, so one palette would not have worked anyway.
+- **The theme toggle has to repaint the dots itself.** The stylesheet reapplies; a delegate and a
+  `ForegroundRole` do not.
+- **`invalidate()`, not `invalidateFilter()`.** PySide6 6.11 deprecates every `invalidate*Filter`
+  variant. `DeprecationWarning` from `workflowapp` is now an error in the test configuration.
 
 ## Phase 5 - Ticket dialog and CRUD
 

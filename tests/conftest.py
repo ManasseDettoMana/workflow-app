@@ -32,6 +32,42 @@ def isolate_data_dir(tmp_path_factory):
         os.environ[DATA_DIR_ENV] = previous
 
 
+@pytest.fixture(autouse=True, scope="session")
+def isolate_settings(tmp_path_factory):
+    """Keep QSettings out of the real registry.
+
+    On Windows ``QSettings`` writes to ``HKCU\\Software\\...``, which is not in
+    the data directory and so is not covered by ``isolate_data_dir``. Switching
+    the default format to an ini file under a scratch directory means no test can
+    change the developer's saved theme or window geometry.
+    """
+    from PySide6.QtCore import QSettings
+
+    scratch = tmp_path_factory.mktemp("settings")
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(scratch))
+    return scratch
+
+
+@pytest.fixture
+def isolated_settings(isolate_settings):
+    """As above, and empty at the start and end of the test."""
+    from workflowapp.gui import theme
+
+    theme.settings().clear()
+    yield isolate_settings
+    theme.settings().clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_active_theme():
+    """The active theme is module state, so it leaks between tests unless reset."""
+    yield
+    from workflowapp.gui import theme
+
+    theme._active = theme.Theme.LIGHT
+
+
 @pytest.fixture
 def ticket_file(tmp_path):
     """A path in a fresh directory. The file itself does not exist yet."""
