@@ -5,4 +5,4 @@ and the business rules, and imports nothing from Qt; ``workflowapp.gui`` is the
 PySide6 interface built on top of it. The dependency only ever points one way.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

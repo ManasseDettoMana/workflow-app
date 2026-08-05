@@ -2,9 +2,10 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Phase 2 complete. The data layer exists and is tested; no interface yet.
+**Current state:** Phase 3 complete. The whole headless half of the application works and is
+tested. Nothing on screen yet.
 
-**Next:** Phase 3 - `TicketManager`, the business logic between the interface and the store.
+**Next:** Phase 4 - the GUI shell: the window, the ticket table and the themes.
 
 ## Phase 1 - Setup
 
@@ -48,12 +49,25 @@ Decided while building it:
 
 ## Phase 3 - Business logic
 
-Branch `phase/3-manager`.
+Branch `phase/3-manager`. Tag `v0.3.0-phase3`.
 
-- [ ] `core/manager.py` - `TicketManager`: the in-memory list, ticket CRUD, activity CRUD,
+- [x] `core/manager.py` - `TicketManager`: the in-memory list, ticket CRUD, activity CRUD,
       `set_status`, filtering and sorting
-- [ ] `_touch` as the single place `updated_at` is bumped, followed by a save
-- [ ] Tests, including `tests/test_no_qt_in_core.py`
+- [x] `_touch` as the single place `updated_at` is bumped, followed by a save
+- [x] Tests, including `tests/test_no_qt_in_core.py` (added in Phase 2)
+
+Decided while building it:
+
+- **`update_ticket` uses a sentinel default, not `None`.** Clearing a deadline is a real edit, so
+  "leave this alone" and "set this to nothing" have to be different things to say.
+- **Tickets with no due date sort last in both directions.** Folding the absent date into the sort
+  key reads correctly ascending and then puts every undated ticket at the top the moment the user
+  reverses the column.
+- **`TicketManager.tickets()` returns a new list each call.** The `Ticket` objects inside it are
+  shared and mutable - that is what makes editing work - but appending to the returned list must
+  not add a ticket nothing will ever save.
+- **Loading happens in the constructor and can raise.** An unreadable file is precisely what the
+  user must be told about at startup, so the GUI constructs the manager inside a try block.
 
 ## Phase 4 - GUI shell
 
