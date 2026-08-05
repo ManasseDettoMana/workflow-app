@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  # Deliberately not triggered on pushes to phase/** as well. Every phase branch
+  # reaches main through a pull request, and listing both fires two identical
+  # runs per push. Work in progress is covered by the pull_request trigger,
+  # which reruns on every push to the branch.
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    # Windows is the target platform. The data directory resolution reads
+    # %APPDATA%, and that path is only exercised here.
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        # Never pipe this into another command: a pipeline reports the exit code
+        # of its last stage, so a failed install looks like a successful one.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: python -m ruff check .
+
+      - name: Check that core imports no Qt
+        # Invariant 1. The suite asserts this too; it is here as well because it
+        # costs a second and names the broken invariant without reading a test
+        # report.
+        run: |
+          python -c "import importlib, pkgutil, sys; import workflowapp.core; [importlib.import_module(i.name) for i in pkgutil.walk_packages(workflowapp.core.__path__, 'workflowapp.core.')]; leaked = sorted(m for m in sys.modules if m.split('.')[0] in {'PySide6', 'shiboken6'}); sys.exit('core imported Qt: ' + ', '.join(leaked) if leaked else 0)"
+
+      - name: Run tests
+        env:
+          # No display on the runner; Qt widgets still construct and behave.
+          QT_QPA_PLATFORM: offscreen
+          # Invariant 3. A test that forgets its tmp_path must not reach a real
+          # ticket file, on a runner or on a developer's machine.
+          WORKFLOWAPP_DATA_DIR: ${{ runner.temp }}\workflowapp-ci
+        run: python -m pytest -q
+
+      - name: Check the version matches the tag
+        # Only on a tag build. A tag claiming v1.0.0 on a tree whose package says
+        # 0.1.0 produces a release nobody can rebuild from the history, and the
+        # mistake is invisible until somebody tries.
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          # Tags are v<version>-phase<n> at a phase merge, v<version> at release.
+          $expected = ($tag -replace '^v', '') -replace '-phase\d+$', ''
+          $actual = python -c "import workflowapp; print(workflowapp.__version__)"
+          if ($actual -ne $expected) {
+            Write-Error "Tag $tag expects version $expected, but workflowapp.__version__ is $actual."
+            exit 1
+          }
+          Write-Host "OK: $tag matches version $actual."

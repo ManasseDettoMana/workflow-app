@@ -1,0 +1,6 @@
+# Runtime dependencies.
+#
+# PySide6 is the whole of it. The core package deliberately does not import Qt,
+# so the model, the store and the manager need nothing beyond the standard
+# library - persistence is json, dates are datetime, ids are uuid.
+PySide6>=6.7

@@ -1,0 +1,76 @@
+#!/bin/sh
+# Refuse a direct push to main, and refuse a push that does not pass.
+#
+# This exists because GitHub will not enforce it for us. Branch protection and
+# rulesets both return
+#
+#     403 Upgrade to GitHub Pro or make this repository public
+#
+# on a private repository on a free account. The credential is not the problem -
+# the token has admin. Until the plan changes, the rule that nothing lands on
+# main without green CI is enforced here instead.
+#
+# Be clear about what that means: a local hook is a guardrail, not a gate. It
+# runs on this machine only, and `git push --no-verify` walks straight past it.
+# It is worth having because the mistake it catches is the one people actually
+# make - pushing to main out of habit, or pushing a branch without running the
+# suite first - not because it stops a determined push.
+#
+# Installed by tools/install-hooks.ps1, which points core.hooksPath here.
+
+set -e
+
+protected="main"
+remote_ref_prefix="refs/heads/"
+
+while read -r local_ref _local_sha remote_ref _remote_sha; do
+    [ -z "$remote_ref" ] && continue
+
+    branch="${remote_ref#$remote_ref_prefix}"
+    if [ "$branch" = "$protected" ]; then
+        echo "pre-push: refusing to push directly to '$protected'." >&2
+        echo "" >&2
+        echo "  Every change reaches main through a pull request with green CI." >&2
+        echo "  Put this on a branch and open one:" >&2
+        echo "" >&2
+        echo "      git switch -c phase/my-work" >&2
+        echo "      git push -u origin phase/my-work" >&2
+        echo "      gh pr create --base main" >&2
+        echo "" >&2
+        exit 1
+    fi
+
+    # A branch being deleted has no commits to check.
+    case "$local_ref" in
+        "(delete)"|"") continue ;;
+    esac
+done
+
+# Prefer the project virtualenv: a global interpreter is unlikely to have the
+# dependencies, and "ruff: not found" would look like the hook itself is broken.
+root="$(git rev-parse --show-toplevel)"
+if [ -x "$root/.venv/Scripts/python.exe" ]; then
+    python="$root/.venv/Scripts/python.exe"
+elif [ -x "$root/.venv/bin/python" ]; then
+    python="$root/.venv/bin/python"
+else
+    echo "pre-push: no .venv found - skipping the checks CI will run anyway." >&2
+    exit 0
+fi
+
+echo "pre-push: ruff"
+"$python" -m ruff check "$root" || {
+    echo "pre-push: lint failed. Fix it, or push with --no-verify if you mean to." >&2
+    exit 1
+}
+
+# WORKFLOWAPP_DATA_DIR is set for the same reason CI sets it: a test that forgets
+# its tmp_path must not find the real ticket file.
+echo "pre-push: pytest"
+QT_QPA_PLATFORM=offscreen WORKFLOWAPP_DATA_DIR="$root/.pytest_cache/data" \
+    "$python" -m pytest -q "$root" || {
+    echo "pre-push: tests failed. Fix them, or push with --no-verify if you mean to." >&2
+    exit 1
+}
+
+echo "pre-push: ok"
