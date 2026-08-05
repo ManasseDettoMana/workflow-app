@@ -1,0 +1,19 @@
+# Text files are normalised to LF in the repository and checked out as-is.
+#
+# This matters for more than tidiness: tools/hooks/pre-push is a shell script run
+# by the sh that ships with Git for Windows. Checked out with CRLF, its shebang
+# line ends in a carriage return and the hook dies with a "bad interpreter"
+# error that names an interpreter which plainly does exist.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF or PowerShell can misparse them.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary
