@@ -94,6 +94,10 @@ The invariants in `CLAUDE.md`, in this order:
 ## Tags
 
 An annotated tag per phase merge (`v0.2.0-phase2`), and `v1.0.0` at release, so any state is
-recoverable by name rather than by hunting through the log. The version in `pyproject.toml` and
-`workflowapp/__init__.py` is bumped with the phase, and CI checks that a tagged build's version
-matches its tag.
+recoverable by name rather than by hunting through the log.
+
+**The version bump belongs in the phase's own pull request**, in `pyproject.toml` and
+`workflowapp/__init__.py` together - `tests/test_packaging.py` fails if the two disagree. Bumping
+afterwards, as `../dynamic-reader` does, means the tag either points at a commit whose version is
+still the old one or needs a second pull request to exist at all. Doing it inside the phase leaves
+the merge commit tagable as it stands.
