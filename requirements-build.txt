@@ -1,0 +1,5 @@
+# Building the Windows executable. Separate from requirements-dev.txt so that CI,
+# which installs the dev set on every run, does not pull PyInstaller down for a
+# job that only lints and tests.
+-r requirements.txt
+pyinstaller>=6.10

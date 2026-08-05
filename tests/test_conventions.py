@@ -115,12 +115,18 @@ ALLOWED_GUI_LITERALS = {
     ".qss",
     "utf-8",
     "workflowapp.gui",
+    "assets/app.ico",
     # QSettings keys.
     "theme",
     "window/geometry",
     "window/state",
-    # Python.
+    # Python, and the platform check guarding the Windows-only taskbar call.
     "__main__",
+    "win32",
+    # The AppUserModelID. Not read by anyone: it is the key Windows groups
+    # taskbar buttons under, and it has to be a stable identifier rather than a
+    # translated name.
+    "ManasseDettoMana.WorkflowApp",
 }
 
 
