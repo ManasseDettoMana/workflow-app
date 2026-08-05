@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workflowapp"
-version = "0.3.0"
+version = "0.4.0"
 description = "Gestore personale di ticket e attivita per Windows"
 readme = "README.md"
 # 3.11 rather than 3.10: tomllib is in the standard library from 3.11, and
@@ -14,8 +14,10 @@ requires-python = ">=3.11"
 authors = [{ name = "ManasseDettoMana" }]
 dependencies = ["PySide6>=6.7"]
 
-# The GUI entry point is declared in Phase 4, when workflowapp.gui.app exists.
-# Declaring it earlier installs a script that raises ImportError.
+# gui-scripts rather than scripts: on Windows the former is launched by pythonw
+# and opens no console window behind the application.
+[project.gui-scripts]
+workflowapp = "workflowapp.gui.app:main"
 
 [tool.setuptools.packages.find]
 include = ["workflowapp*"]
@@ -32,6 +34,12 @@ include = ["workflowapp*"]
 testpaths = ["tests"]
 markers = [
     "gui: test needs a Qt application instance",
+]
+# A deprecation warning from PySide6 is how a Qt call announces it will stop
+# working in a future release, which is exactly the thing worth hearing about
+# early rather than at upgrade time.
+filterwarnings = [
+    "error::DeprecationWarning:workflowapp.*",
 ]
 
 [tool.ruff]
