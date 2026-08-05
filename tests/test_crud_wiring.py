@@ -180,7 +180,9 @@ class TestEdit:
         populated.edit_selected()
         assert called == []
 
-    def test_a_double_click_opens_the_dialog(self, populated, manager, monkeypatch):
+    def test_activating_a_row_opens_the_dialog(self, populated, manager, monkeypatch):
+        # activated covers Enter as well as the double click, which is what the
+        # toolbar tooltip promises.
         populated._table.selectRow(0)
         # Not "Primo": the table defaults to most-recently-updated first, so row
         # 0 is whichever ticket was touched last.
@@ -188,7 +190,7 @@ class TestEdit:
 
         opened = []
         fill_dialog(monkeypatch, lambda d: opened.append(d.title_edit.text()))
-        populated._on_double_click(populated._table.currentIndex())
+        populated._on_activated(populated._table.currentIndex())
 
         assert opened == [selected.title]
 
