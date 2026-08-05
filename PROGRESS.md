@@ -2,11 +2,12 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Phase 5 complete. The application is feature-complete against `docs/prompt.md`
-- create, edit, delete, activities, statuses, deadlines, filtering, sorting, both themes, all
-persisted.
+**Current state:** Finished. All six phases are done, 257 tests pass, and the application has been
+run end to end against a scratch data file: created a ticket through the dialog, closed it,
+reopened it in a fresh process with everything intact and the theme remembered, then corrupted the
+file by hand and confirmed it reports and preserves rather than overwrites.
 
-**Next:** Phase 6 - polish and the final manual verification pass.
+**Next:** nothing planned. Ideas, none of them committed to, are at the bottom of this file.
 
 ## Phase 1 - Setup
 
@@ -130,12 +131,43 @@ Learned while testing it:
 
 ## Phase 6 - Tests and polish
 
-Branch `phase/6-tests-polish`.
+Branch `phase/6-tests-polish`. Tag `v1.0.0-phase6`.
 
-- [ ] GUI tests with pytest-qt
-- [ ] End-to-end: create, close, reopen, everything still there
-- [ ] Italian and no-emoji sweep over the whole UI
-- [ ] Spacing, tab order, window geometry remembered
+- [x] GUI tests with pytest-qt (from Phase 4 onwards, 257 in total)
+- [x] End-to-end: create, close, reopen, everything still there
+- [x] Italian and no-emoji sweep, both as automated tests
+- [x] Enter opens the selected ticket, as the toolbar tooltip already promised
+- [x] Changing the theme no longer drops the selection
+- [x] Window geometry remembered (Phase 4)
+
+`tests/test_conventions.py` is the interesting one. Invariants 8 and 9 are exactly the sort of
+rule that holds for a month and then quietly stops, so both are now checked rather than trusted:
+
+- **No emoji**, by Unicode range rather than by "is it ASCII". Italian needs the accented letters,
+  and `docs/prompt.md` draws a directory tree out of box-drawing characters - both are category
+  `So`, so the naive check fails on the brief itself. It also caught the emoji in its own test
+  data, which is the sort of thing that makes you believe a test.
+- **No Italian outside `gui/strings.py`**, by parsing every GUI module and comparing its string
+  literals against an explicit allowlist. Everything on that list is technical - colours, Qt object
+  names, `QSettings` keys, format templates. A new entry is a decision somebody has to make on
+  purpose, and Italian does not belong in it.
+
+Learned while writing them:
+
+- **A session-scoped scratch directory is the wrong home for a test that writes a broken file.**
+  `isolate_data_dir` exists so a forgotten `tmp_path` cannot reach real tickets, and it is shared;
+  a `tickets.json.corrupt-*` left in it is still there when the next test looks, and the failure
+  then surfaces somewhere unrelated. `scratch_data_dir` is the per-test version.
+
+## Possible future work
+
+None of this is planned, and none of it is needed for the brief.
+
+- Filtering by "overdue" as well as by status.
+- Reordering activities within a ticket.
+- Exporting a ticket, or the list, as text.
+- A packaged executable. The `.qss` files are already declared as package data, which is the part
+  that usually gets missed.
 
 ## Open questions
 

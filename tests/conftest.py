@@ -75,6 +75,20 @@ def ticket_file(tmp_path):
 
 
 @pytest.fixture
+def scratch_data_dir(tmp_path, monkeypatch):
+    """A data directory belonging to one test.
+
+    ``isolate_data_dir`` is session-scoped and shared, which is right for its job
+    - stopping a forgotten ``tmp_path`` reaching real tickets - and wrong for any
+    test that deliberately writes a broken file. Left in the shared directory, a
+    corrupt file or a stray ``tickets.json.corrupt-*`` is still there when the
+    next test looks, and the failure surfaces somewhere unrelated.
+    """
+    monkeypatch.setenv(DATA_DIR_ENV, str(tmp_path))
+    return tmp_path
+
+
+@pytest.fixture
 def sample_ticket():
     """A ticket exercising every field, including the ones with defaults."""
     return Ticket(

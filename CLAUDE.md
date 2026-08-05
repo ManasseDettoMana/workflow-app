@@ -26,7 +26,7 @@ python -m pip install -r requirements-dev.txt   # full dev environment
 python -m workflowapp                           # the application
 python -m pytest -q                             # test suite
 python -m pytest -q -m "not gui"                # headless core only, no Qt platform needed
-python -m pytest -q tests/test_store.py          # one file
+python -m pytest -q tests/test_store.py         # one file
 python -m pytest -q -k atomic                   # one test by name
 python -m ruff check .                          # lint
 python -m ruff check . --fix                    # and fix what is mechanical
@@ -148,6 +148,10 @@ These are not style preferences. Breaking them loses a user's tickets or mislead
   isolate it. `tests/conftest.py` switches the default format to `IniFormat` under a scratch
   directory for the whole session, which is what stops a test rewriting your own saved theme and
   window position.
+- **`isolate_data_dir` is session-scoped and shared; `scratch_data_dir` is per test.** Use the
+  latter for anything that deliberately writes a broken ticket file. A `tickets.json.corrupt-*`
+  left in the shared directory is still there when the next test looks, and the failure surfaces
+  somewhere unrelated to the test that caused it.
 - **PySide6 6.11 marks every `invalidate*Filter` variant deprecated** - `invalidateFilter`,
   `invalidateRowsFilter`, `invalidateColumnsFilter`. Plain `invalidate()` is the one that is not.
   `pyproject.toml` turns a `DeprecationWarning` raised from `workflowapp` into an error, so the

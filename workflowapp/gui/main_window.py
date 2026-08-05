@@ -115,7 +115,10 @@ class MainWindow(QMainWindow):
         self._table.setShowGrid(False)
         self._table.verticalHeader().setVisible(False)
         self._table.verticalHeader().setDefaultSectionSize(34)
-        self._table.doubleClicked.connect(self._on_double_click)
+        # activated, not doubleClicked: it covers Enter as well as the double
+        # click, which is what ACTION_EDIT_TIP promises. Connecting both would
+        # open two dialogs on the styles where both fire.
+        self._table.activated.connect(self._on_activated)
         self._table.selectionModel().selectionChanged.connect(self._update_actions)
 
         header = self._table.horizontalHeader()
@@ -286,12 +289,14 @@ class MainWindow(QMainWindow):
             status = self._status_filter.itemData(index)
             if status is not None:
                 self._status_filter.setItemIcon(index, status_icon(status))
-        self._model.set_tickets(self._manager.tickets())
+        # Through refresh rather than set_tickets directly, so that changing the
+        # theme does not silently drop the selection.
+        self.refresh()
         self._table.viewport().update()
 
     # ------------------------------------------------------------- private
 
-    def _on_double_click(self, index: QModelIndex) -> None:
+    def _on_activated(self, index: QModelIndex) -> None:
         del index
         self.edit_selected()
 
