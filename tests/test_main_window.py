@@ -160,6 +160,15 @@ class TestFiltering:
         assert offered == set(Status)
         assert not window._status_filter.itemIcon(1).isNull()
 
+    def test_the_overdue_checkbox_filters(self, window, manager):
+        overdue = manager.add_ticket("Scaduto", due_date=date.today() - timedelta(days=3))
+        window.refresh()
+        assert window._proxy.rowCount() == 4
+        window._overdue_check.setChecked(True)
+        assert window._proxy.rowCount() == 1
+        window.select_ticket(overdue.id)
+        assert window.selected_ticket().title == "Scaduto"
+
 
 class TestStatusBar:
     def test_it_counts_visible_and_total(self, window):

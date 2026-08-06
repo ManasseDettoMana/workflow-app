@@ -47,6 +47,7 @@ ACTION_THEME_TIP = "Alterna il tema chiaro e scuro"
 FILTER_LABEL = "Filtra:"
 FILTER_PLACEHOLDER = "Cerca per titolo o descrizione"
 FILTER_ALL_STATUSES = "Tutti gli stati"
+FILTER_OVERDUE_ONLY = "Solo in scadenza"
 
 COLUMN_TITLE = "Titolo"
 COLUMN_STATUS = "Stato"
