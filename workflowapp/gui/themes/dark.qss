@@ -54,8 +54,10 @@ QToolBar::separator {
 }
 
 /* Table --------------------------------------------------------------- */
+/* See the same section in light.qss for why every rule here is scoped to
+ * #ticketTable: the calendar popup's day grid is a QTableView as well. */
 
-QTableView {
+QTableView#ticketTable {
     background-color: #262b34;
     alternate-background-color: #2b313b;
     border: 1px solid #333a45;
@@ -66,7 +68,7 @@ QTableView {
     outline: none;
 }
 
-QTableView::item {
+QTableView#ticketTable::item {
     padding: 6px 8px;
     border: none;
 }
@@ -77,12 +79,12 @@ QTableView::item {
  * "windows11" style a selected row is painted exactly like an unselected one -
  * less destructive here than the white-on-white it causes in the light theme,
  * but still a selection that cannot be seen. */
-QTableView::item:selected {
+QTableView#ticketTable::item:selected {
     background-color: #2f6fd0;
     color: #ffffff;
 }
 
-QHeaderView::section {
+QTableView#ticketTable QHeaderView::section {
     background-color: #262b34;
     color: #9aa3b2;
     border: none;
@@ -91,7 +93,7 @@ QHeaderView::section {
     font-weight: 600;
 }
 
-QHeaderView::section:hover {
+QTableView#ticketTable QHeaderView::section:hover {
     color: #e4e7eb;
 }
 

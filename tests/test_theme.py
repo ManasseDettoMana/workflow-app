@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from workflowapp.core.models import Status
 from workflowapp.gui import strings, theme
 
 pytestmark = pytest.mark.gui
+
+
+def _selectors(qss: str) -> set[str]:
+    """Every selector list in a stylesheet, comments stripped, spacing normalised.
+
+    Enough of a parser to compare two files that are meant to differ only in
+    their values. It does not understand nesting, which Qt stylesheets do not
+    have.
+    """
+    without_comments = re.sub(r"/\*.*?\*/", "", qss, flags=re.DOTALL)
+    return {" ".join(block.split()) for block in re.findall(r"([^{}]+)\{", without_comments)}
 
 
 class TestStylesheets:
@@ -22,6 +35,16 @@ class TestStylesheets:
     def test_the_two_themes_are_not_the_same_file(self):
         assert theme.stylesheet(theme.Theme.LIGHT) != theme.stylesheet(theme.Theme.DARK)
 
+    def test_the_two_themes_declare_the_same_selectors(self):
+        # The two files are meant to be one design in two colourways: same rules
+        # throughout, different values. Nothing enforced that, and a widget styled
+        # in one theme and forgotten in the other is invisible until somebody
+        # switches - which is how the native checkbox indicator and the unthemed
+        # calendar popup both survived this long.
+        light = _selectors(theme.stylesheet(theme.Theme.LIGHT))
+        dark = _selectors(theme.stylesheet(theme.Theme.DARK))
+        assert light == dark
+
     @pytest.mark.parametrize("which", list(theme.Theme))
     def test_each_theme_paints_the_selected_row_itself(self, which):
         # The selection-* pair on QTableView is not enough. Declaring
@@ -30,9 +53,26 @@ class TestStylesheets:
         # selected row keeps the view's own background. The rendered proof is in
         # tests/test_main_window.py; this is here so the rule cannot be deleted
         # as a duplicate of the two lines above it.
-        rule = theme.stylesheet(which).partition("QTableView::item:selected")[2].partition("}")[0]
+        rule = (
+            theme.stylesheet(which)
+            .partition("#ticketTable::item:selected {")[2]
+            .partition("}")[0]
+        )
         assert "background-color:" in rule
         assert "color:" in rule
+
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_the_table_rules_never_escape_the_ticket_table(self, which):
+        # A QCalendarWidget keeps its day grid in a QTableView, so a bare
+        # QTableView rule reaches into the ticket dialog's date popup. An ::item
+        # rule reaching it is the damaging one: it takes the day cell away from
+        # QCalendarWidget::paintCell and paints over it.
+        escaped = [
+            selector
+            for selector in _selectors(theme.stylesheet(which))
+            if "QTableView" in selector and "#ticketTable" not in selector
+        ]
+        assert escaped == []
 
     def test_neither_stylesheet_styles_the_status_column(self):
         # The delegate owns that column. A rule here would be a second opinion

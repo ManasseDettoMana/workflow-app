@@ -106,6 +106,10 @@ class MainWindow(QMainWindow):
         layout.addLayout(self._build_filter_row())
 
         self._table = QTableView(central)
+        # The stylesheet's table rules are scoped to this name. A QCalendarWidget
+        # keeps its day grid in a QTableView too, so an unscoped rule would reach
+        # inside the dialog's date popup and repaint it.
+        self._table.setObjectName("ticketTable")
         self._table.setModel(self._proxy)
         self._table.setItemDelegateForColumn(int(Column.STATUS), StatusDelegate(self._table))
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)

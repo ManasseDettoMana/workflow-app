@@ -53,8 +53,13 @@ QToolBar::separator {
 }
 
 /* Table --------------------------------------------------------------- */
+/* Scoped to #ticketTable throughout, and the header scoped as its descendant.
+ * The calendar popup's day grid is a QTableView too, so an unscoped rule here
+ * reaches inside it - including ::item, which would hand the day cell to
+ * QStyleSheetStyle and paint over QCalendarWidget::paintCell. See the Calendar
+ * section below, which relies on this one staying out of its way. */
 
-QTableView {
+QTableView#ticketTable {
     background-color: #ffffff;
     alternate-background-color: #fafbfc;
     border: 1px solid #dfe3e8;
@@ -65,7 +70,7 @@ QTableView {
     outline: none;
 }
 
-QTableView::item {
+QTableView#ticketTable::item {
     padding: 6px 8px;
     border: none;
 }
@@ -76,12 +81,12 @@ QTableView::item {
  * QTableView's. Left out, under Qt's "windows11" style the cell keeps the view's
  * white background and still takes selection-color for its text: white on white,
  * and the ticket title vanishes the moment its row is selected. */
-QTableView::item:selected {
+QTableView#ticketTable::item:selected {
     background-color: #2563eb;
     color: #ffffff;
 }
 
-QHeaderView::section {
+QTableView#ticketTable QHeaderView::section {
     background-color: #ffffff;
     color: #52606d;
     border: none;
@@ -90,7 +95,7 @@ QHeaderView::section {
     font-weight: 600;
 }
 
-QHeaderView::section:hover {
+QTableView#ticketTable QHeaderView::section:hover {
     color: #1f2933;
 }
 

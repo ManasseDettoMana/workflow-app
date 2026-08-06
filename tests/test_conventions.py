@@ -108,6 +108,9 @@ ALLOWED_GUI_LITERALS = {
     "emptyLabel",
     "metaLabel",
     "sectionLabel",
+    # Scopes the stylesheet's table rules to the ticket table, so they stop
+    # reaching the QTableView inside the ticket dialog's calendar popup.
+    "ticketTable",
     # Theme tokens and resource loading.
     "dark",
     "light",
