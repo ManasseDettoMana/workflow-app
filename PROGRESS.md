@@ -2,10 +2,11 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Finished. All six phases are done, 257 tests pass, and the application has been
-run end to end against a scratch data file: created a ticket through the dialog, closed it,
-reopened it in a fresh process with everything intact and the theme remembered, then corrupted the
-file by hand and confirmed it reports and preserves rather than overwrites.
+**Current state:** Finished and packaged. All seven phases are done, 264 tests pass, and the
+application has been run end to end against a scratch data file: created a ticket through the
+dialog, closed it, reopened it in a fresh process with everything intact and the theme remembered,
+then corrupted the file by hand and confirmed it reports and preserves rather than overwrites. It
+now also builds into a Windows executable that starts from a Desktop icon.
 
 **Next:** nothing planned. Ideas, none of them committed to, are at the bottom of this file.
 
@@ -159,6 +160,71 @@ Learned while writing them:
   a `tickets.json.corrupt-*` left in it is still there when the next test looks, and the failure
   then surfaces somewhere unrelated. `scratch_data_dir` is the per-test version.
 
+## Phase 7 - Packaging
+
+Branch `phase/7-packaging`. Tag `v1.1.0-phase7`. Version 1.1.0.
+
+The application could only be started with `python -m workflowapp` from an activated virtualenv,
+which is not a thing the one person it was built for should have to do.
+
+- [x] `tools/make_icon.py` and `workflowapp/gui/assets/app.ico` - the application finally has an
+      icon. There was none, and no `setWindowIcon` call either
+- [x] `workflowapp/gui/assets.py` - `app_icon()`, loaded from the package like the stylesheets
+- [x] `setWindowIcon` on the application, plus the Windows AppUserModelID
+- [x] `packaging/workflowapp.spec` - one `Analysis`, two `EXE` targets
+- [x] `tools/build.ps1` and `tools/install-shortcut.ps1`
+- [x] `requirements-build.txt` - PyInstaller, kept out of the dev set so CI does not install it
+- [x] Tests: the resources resolve through `importlib.resources`, the `.ico` has all six sizes,
+      and the `package-data` declaration names both
+- [x] A `package` job in CI, on tags and `workflow_dispatch`
+- [x] Both artefacts built and run end to end against a scratch data file
+
+Two artefacts, roughly 110 MB as a folder and 44 MB as one file:
+
+| | Starts in | For |
+| --- | --- | --- |
+| `dist\Workflow App\Workflow App.exe` | under a second | every day, through the Desktop shortcut |
+| `dist\Workflow App portable.exe` | a few seconds | copying to another machine |
+
+Decided while building it:
+
+- **The icon is drawn by a script, not committed as a binary from nowhere.** `make_icon.py` is its
+  source; the `.ico` is committed as its output so a build never depends on regenerating it. The
+  same reasoning as the status dots in `status_badge.py`, which are painted rather than shipped.
+- **A checkmark rather than a letter.** Two strokes stay legible at 16px, and drawing paths instead
+  of text means no font dependency and the same result on every machine. The blue is `Status.OPEN`
+  from the light palette, so the icon and the application agree rather than merely resembling
+  each other.
+- **The `.ico` container is assembled in Python.** Qt's ICO writer does one frame per file and
+  Windows wants six in one container. The format is a six-byte header plus sixteen bytes per
+  frame, and PNG frames are valid from Vista onwards - which is less code than a dependency.
+- **`packaging/entry.py` rather than freezing `__main__.py`.** PyInstaller runs the entry script as
+  `__main__` with no package context, and `from .gui.app import main` then has nothing to be
+  relative to.
+- **The version resource reads `workflowapp.__version__`.** `tests/test_packaging.py` exists to
+  stop the version living in two places; a third hand-typed copy in the spec would walk past it.
+- **UPX is off.** It saves perhaps a third of the size and is a reliable way to have an unsigned
+  executable quarantined by antivirus.
+- **The shortcut points into `dist\` rather than copying the build.** One place to rebuild over and
+  no second copy of unknown age. The cost is that moving `dist\` breaks the shortcut, which
+  `install-shortcut.ps1` says and the README repeats.
+- **The `package` CI job does not run on pull requests.** It adds minutes to a run that finishes
+  fast, and the thing it guards - a resource missing from the bundle - is already asserted by
+  `test_packaging.py` on every run and by `build.ps1` on every build.
+
+Learned while building it:
+
+- **The window appearing at all is the proof the resources loaded.** `apply_theme` and `app_icon`
+  both run before `MainWindow` exists, and both raise if their file is missing from the bundle, so
+  a frozen build that shows a window has already demonstrated the part that usually breaks.
+- **A onefile build runs as two processes**, and the window belongs to the child. Waiting on the
+  process that was started looks exactly like an application that never opened.
+- **Windows PowerShell reads a native command's stderr as failure.** PyInstaller logs its progress
+  there, so `$?` is `$false` after a build that succeeded. `build.ps1` checks `$LASTEXITCODE`.
+- **`Set-Content -Encoding utf8` writes a BOM** in Windows PowerShell, and `json.loads` refuses the
+  result. A hand-written ticket file made this way is quarantined as corrupt - which is invariant 3
+  working correctly, and confusing for exactly as long as it takes to notice the BOM.
+
 ## Possible future work
 
 None of this is planned, and none of it is needed for the brief.
@@ -166,8 +232,8 @@ None of this is planned, and none of it is needed for the brief.
 - Filtering by "overdue" as well as by status.
 - Reordering activities within a ticket.
 - Exporting a ticket, or the list, as text.
-- A packaged executable. The `.qss` files are already declared as package data, which is the part
-  that usually gets missed.
+- Signing the executable, so Windows stops warning on first run. Needs a certificate.
+- An installer rather than a folder plus a shortcut script.
 
 ## Open questions
 

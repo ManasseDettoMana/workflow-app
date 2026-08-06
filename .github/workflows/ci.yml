@@ -74,3 +74,42 @@ jobs:
             exit 1
           }
           Write-Host "OK: $tag matches version $actual."
+
+  package:
+    # Deliberately not on pull requests. Freezing PySide6 takes minutes, and the
+    # failure it guards against - a resource missing from the bundle - is already
+    # asserted by tests/test_packaging.py on every run and by build.ps1 itself.
+    # This is here so that a tagged release is known to produce a working
+    # executable, and so the build can be run on demand after touching the spec.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-build.txt
+
+      - name: Build
+        # build.ps1 fails if either stylesheet or the icon is missing from the
+        # bundle, which is the check worth having here.
+        shell: pwsh
+        run: .\tools\build.ps1
+
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-app-windows
+          path: |
+            dist/Workflow App/
+            dist/Workflow App portable.exe
+          if-no-files-found: error
