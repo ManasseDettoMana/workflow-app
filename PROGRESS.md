@@ -2,7 +2,7 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Finished and packaged. All eight phases are done, 271 tests pass, and the
+**Current state:** Finished and packaged. All eight phases are done, 270 tests pass, and the
 application has been run end to end against a scratch data file: created a ticket through the
 dialog, closed it, reopened it in a fresh process with everything intact and the theme remembered,
 then corrupted the file by hand and confirmed it reports and preserves rather than overwrites. It
