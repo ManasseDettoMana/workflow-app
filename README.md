@@ -65,6 +65,7 @@ nella propria cartella, e usa gli stessi dati della versione avviata da Python.
 - Stati con colore: Aperto, In Lavorazione, Fatto, Urgente
 - Lista di attivita per ogni ticket, con spunta di completamento
 - Scadenza facoltativa, con evidenziazione dei ticket scaduti
+- Filtri per testo, per stato e per soli ticket in scadenza
 - Tema chiaro e scuro, con la preferenza ricordata tra un avvio e l'altro
 - Salvataggio automatico a ogni modifica
 

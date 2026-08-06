@@ -191,3 +191,26 @@ class TestFiltering:
         proxy.set_status_filter(Status.DONE)
         proxy.set_text_filter("alfa")
         assert proxy.rowCount() == 0
+
+    def test_by_overdue(self, qapp):
+        del qapp
+        overdue_ticket = Ticket.create(
+            "Overdue", status=Status.OPEN, due_date=date.today() - timedelta(days=2)
+        )
+        normal_ticket = Ticket.create(
+            "Normal", status=Status.OPEN, due_date=date.today() + timedelta(days=2)
+        )
+        done_ticket = Ticket.create(
+            "Done", status=Status.DONE, due_date=date.today() - timedelta(days=2)
+        )
+
+        model = TicketTableModel()
+        model.set_tickets([overdue_ticket, normal_ticket, done_ticket])
+        proxy = TicketSortProxy()
+        proxy.setSourceModel(model)
+
+        proxy.set_overdue_filter(True)
+        assert titles(proxy) == ["Overdue"]
+
+        proxy.set_overdue_filter(False)
+        assert proxy.rowCount() == 3

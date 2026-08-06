@@ -180,6 +180,7 @@ class TicketSortProxy(QSortFilterProxyModel):
         self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._status: Status | None = None
         self._text: str = ""
+        self._overdue_only: bool = False
 
     def set_status_filter(self, status: Status | None) -> None:
         self._status = status
@@ -195,10 +196,16 @@ class TicketSortProxy(QSortFilterProxyModel):
         # only one that is not.
         self.invalidate()
 
+    def set_overdue_filter(self, overdue_only: bool) -> None:
+        self._overdue_only = overdue_only
+        self.invalidate()
+
     def filterAcceptsRow(self, row: int, parent: QModelIndex) -> bool:
         model = self.sourceModel()
         ticket = model.ticket_at(row) if isinstance(model, TicketTableModel) else None
         if ticket is None:
+            return False
+        if self._overdue_only and not ticket.is_overdue:
             return False
         if self._status is not None and ticket.status is not self._status:
             return False

@@ -12,6 +12,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -162,6 +163,10 @@ class MainWindow(QMainWindow):
         self._status_filter.currentIndexChanged.connect(self._on_filter_changed)
         row.addWidget(self._status_filter)
 
+        self._overdue_check = QCheckBox(strings.FILTER_OVERDUE_ONLY, self)
+        self._overdue_check.toggled.connect(self._on_filter_changed)
+        row.addWidget(self._overdue_check)
+
         return row
 
     # ------------------------------------------------------------- reading
@@ -303,6 +308,7 @@ class MainWindow(QMainWindow):
     def _on_filter_changed(self) -> None:
         self._proxy.set_text_filter(self._search.text())
         self._proxy.set_status_filter(self._status_filter.currentData())
+        self._proxy.set_overdue_filter(self._overdue_check.isChecked())
         self._update_status_bar()
         self._update_actions()
 

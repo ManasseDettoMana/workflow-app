@@ -71,6 +71,17 @@ QTableView::item {
     border: none;
 }
 
+/* See the same rule in light.qss. Declaring QTableView::item hands item drawing
+ * to the stylesheet, which then takes the selected cell's background from here
+ * rather than from QTableView's selection-background-color. Left out, under Qt's
+ * "windows11" style a selected row is painted exactly like an unselected one -
+ * less destructive here than the white-on-white it causes in the light theme,
+ * but still a selection that cannot be seen. */
+QTableView::item:selected {
+    background-color: #2f6fd0;
+    color: #ffffff;
+}
+
 QHeaderView::section {
     background-color: #262b34;
     color: #9aa3b2;

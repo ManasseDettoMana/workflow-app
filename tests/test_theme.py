@@ -22,6 +22,18 @@ class TestStylesheets:
     def test_the_two_themes_are_not_the_same_file(self):
         assert theme.stylesheet(theme.Theme.LIGHT) != theme.stylesheet(theme.Theme.DARK)
 
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_each_theme_paints_the_selected_row_itself(self, which):
+        # The selection-* pair on QTableView is not enough. Declaring
+        # QTableView::item hands item drawing to the stylesheet, which then takes
+        # the selected cell's background from the item rule - and without one, a
+        # selected row keeps the view's own background. The rendered proof is in
+        # tests/test_main_window.py; this is here so the rule cannot be deleted
+        # as a duplicate of the two lines above it.
+        rule = theme.stylesheet(which).partition("QTableView::item:selected")[2].partition("}")[0]
+        assert "background-color:" in rule
+        assert "color:" in rule
+
     def test_neither_stylesheet_styles_the_status_column(self):
         # The delegate owns that column. A rule here would be a second opinion
         # about it, and the two would drift.

@@ -156,6 +156,13 @@ These are not style preferences. Breaking them loses a user's tickets or mislead
   indexes.** Anything taking a selection from the view must call `proxy.mapToSource()` before it
   indexes the ticket list. Sorting the table and then deleting the wrong ticket is the failure
   this causes, and it looks like a data bug rather than an index bug.
+- **Declaring `QTableView::item` hands item drawing to the stylesheet**, and from then on the
+  selected cell's background comes from an `::item:selected` rule rather than from `QTableView`'s
+  `selection-background-color`. Under Qt's `windows11` style - the default on Windows 11 - a
+  missing rule means a selected cell keeps the view's own background while its text still takes
+  `selection-color`: white on white in the light theme, and an invisible selection in the dark one.
+  `windowsvista`, `Windows` and `Fusion` are all unaffected, and `Fusion` is what the offscreen
+  platform picks, so a test for this has to set the style itself or it measures nothing.
 - **Status colours live in Python, per theme, not in the QSS.** A `QStyledItemDelegate` paints
   them, and a stylesheet cannot reach into a delegate. They are also genuinely different per
   theme: the amber that reads on white is nearly invisible on dark grey.
