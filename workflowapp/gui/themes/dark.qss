@@ -228,6 +228,31 @@ QCheckBox {
     spacing: 8px;
 }
 
+/* See the same block in light.qss for why there is no tick glyph. The dark
+ * theme is the reason this section exists at all: the native indicator is drawn
+ * from the system palette and stays a light box on a dark dialog. */
+QCheckBox::indicator, QListWidget::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #3f4756;
+    border-radius: 3px;
+    background-color: #1a1e25;
+}
+
+QCheckBox::indicator:hover, QListWidget::indicator:hover {
+    border-color: #60a5fa;
+}
+
+QCheckBox::indicator:checked, QListWidget::indicator:checked {
+    background-color: #2f6fd0;
+    border-color: #2f6fd0;
+}
+
+QCheckBox::indicator:disabled, QListWidget::indicator:disabled {
+    background-color: #22272f;
+    border-color: #333a45;
+}
+
 QScrollBar:vertical {
     background: transparent;
     width: 10px;

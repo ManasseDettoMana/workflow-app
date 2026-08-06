@@ -74,6 +74,17 @@ class TestStylesheets:
         ]
         assert escaped == []
 
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_each_theme_styles_a_checkbox_indicator(self, which):
+        # Left to the native indicator, the box is drawn from the system palette
+        # and stays light on a dark dialog. Both halves of the selector were
+        # measured rather than assumed: a QListWidget's checkable item goes
+        # through PE_IndicatorItemViewItemCheck, and it does pick this up.
+        qss = theme.stylesheet(which)
+        assert "QCheckBox::indicator" in qss
+        assert "QListWidget::indicator" in qss
+        assert "QCheckBox::indicator:checked" in qss
+
     def test_neither_stylesheet_styles_the_status_column(self):
         # The delegate owns that column. A rule here would be a second opinion
         # about it, and the two would drift.

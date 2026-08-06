@@ -228,6 +228,36 @@ QCheckBox {
     spacing: 8px;
 }
 
+/* There is no tick glyph inside the checked box. A stylesheet cannot draw one
+ * without an image: url(), and a new runtime resource has to be declared in
+ * [tool.setuptools.package-data] and in the spec's datas or it loads from a
+ * source checkout and is missing from the frozen build. A filled accent square
+ * against an empty outlined one is unambiguous enough not to be worth three
+ * places to remember it. What this replaces is the native indicator, drawn from
+ * the system palette and staying light in the dark theme - the same class of
+ * defect as a selected row that cannot be read. */
+QCheckBox::indicator, QListWidget::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #cbd2d9;
+    border-radius: 3px;
+    background-color: #ffffff;
+}
+
+QCheckBox::indicator:hover, QListWidget::indicator:hover {
+    border-color: #2563eb;
+}
+
+QCheckBox::indicator:checked, QListWidget::indicator:checked {
+    background-color: #2563eb;
+    border-color: #2563eb;
+}
+
+QCheckBox::indicator:disabled, QListWidget::indicator:disabled {
+    background-color: #f0f2f5;
+    border-color: #dfe3e8;
+}
+
 QScrollBar:vertical {
     background: transparent;
     width: 10px;
