@@ -16,8 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, QLocale, Qt
+from PySide6.QtGui import QFont, QIcon, QTextCharFormat
 from PySide6.QtWidgets import (
+    QCalendarWidget,
     QCheckBox,
     QComboBox,
     QDateEdit,
@@ -29,13 +31,14 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from workflowapp.core.models import Activity, Status, Ticket
 
-from . import strings
+from . import strings, theme
 from .widgets.activity_list import ActivityList
 from .widgets.status_badge import status_icon
 
@@ -131,6 +134,7 @@ class TicketDialog(QDialog):
         self.due_date_edit.setDisplayFormat(strings.DATE_FORMAT)
         self.due_date_edit.setDate(QDate.currentDate())
         self.due_date_edit.dateChanged.connect(self._mark_dirty)
+        self._theme_calendar()
         layout.addWidget(self.due_date_edit)
 
         # A ticket with no deadline is ordinary, and a QDateEdit has no way to
@@ -141,6 +145,63 @@ class TicketDialog(QDialog):
         layout.addStretch(1)
 
         return row
+
+    def _theme_calendar(self) -> None:
+        """Set the parts of the calendar popup a stylesheet cannot reach.
+
+        Everything else about the popup is in the themes' Calendar section. These
+        four are not reachable from there:
+
+        Qt gives Saturday and Sunday a hard-coded red foreground as a
+        ``QTextCharFormat``, and QSS has no way into one. That red belongs to
+        neither palette, and in the dark theme it is close enough to the overdue
+        colour that a weekend reads as a deadline.
+
+        The month names come from the system locale, which is Italian on this
+        machine and would not be on another. Invariant 9 says the interface is
+        Italian, not "Italian if Windows happens to be".
+
+        The prev and next buttons carry a ``QIcon`` baked from the style at
+        construction, and a stylesheet cannot recolour a ``QIcon`` - it stays
+        dark on the dark theme's navigation bar. Cleared, the button falls back
+        to drawing an arrow primitive, which the stylesheet does reach.
+
+        The dialog is modal and built fresh each time, so this reads whichever
+        palette is active now and never needs to be redone on a theme change.
+        """
+        calendar = self.due_date_edit.calendarWidget()
+        calendar.setLocale(QLocale(QLocale.Language.Italian))
+        # Nobody schedules a personal ticket by ISO week number, and the column
+        # is a second QHeaderView for the stylesheet to have an opinion about.
+        calendar.setVerticalHeaderFormat(
+            QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader
+        )
+
+        muted = theme.active_palette().muted_color()
+
+        # The weekday row's default format is NoBrush on both sides, so it
+        # already follows the view palette the stylesheet sets. Only the weight
+        # is added: Qt paints that row on a slightly shaded band, and spending
+        # the muted colour on it as well drops the day names to 3.9:1 there.
+        header = QTextCharFormat()
+        header.setFontWeight(QFont.Weight.DemiBold)
+        calendar.setHeaderTextFormat(header)
+
+        weekend = QTextCharFormat()
+        weekend.setForeground(muted)
+        for day in (Qt.DayOfWeek.Saturday, Qt.DayOfWeek.Sunday):
+            calendar.setWeekdayTextFormat(day, weekend)
+
+        for name, arrow in (
+            ("qt_calendar_prevmonth", Qt.ArrowType.LeftArrow),
+            ("qt_calendar_nextmonth", Qt.ArrowType.RightArrow),
+        ):
+            # Qt-internal names. A future Qt that renamed them must cost a
+            # missing arrow, not an AttributeError inside a dialog constructor.
+            button = calendar.findChild(QToolButton, name)
+            if button is not None:
+                button.setIcon(QIcon())
+                button.setArrowType(arrow)
 
     # ---------------------------------------------------------- populating
 

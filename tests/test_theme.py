@@ -75,6 +75,28 @@ class TestStylesheets:
         assert escaped == []
 
     @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_each_theme_styles_the_calendar_popup(self, which):
+        # Unstyled, the ticket dialog's date popup is a native white calendar
+        # dropping out of a dark dialog.
+        qss = theme.stylesheet(which)
+        assert "qt_calendar_navigationbar" in qss
+        assert "qt_calendar_calendarview" in qss
+        assert "qt_datetimedit_calendar" in qss
+
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_neither_stylesheet_declares_an_item_rule_for_the_calendar(self, which):
+        # QCalendarWidget::paintCell draws the day cells itself, out of the
+        # view's palette - which is why the selection-* properties on that view
+        # reach it at all. Declaring ::item hands the cell to QStyleSheetStyle
+        # instead, and it paints over paintCell.
+        offenders = [
+            selector
+            for selector in _selectors(theme.stylesheet(which))
+            if "qt_calendar_calendarview" in selector and "::item" in selector
+        ]
+        assert offenders == []
+
+    @pytest.mark.parametrize("which", list(theme.Theme))
     def test_each_theme_styles_a_checkbox_indicator(self, which):
         # Left to the native indicator, the box is drawn from the system palette
         # and stays light on a dark dialog. Both halves of the selector were

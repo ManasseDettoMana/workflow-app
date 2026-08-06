@@ -113,6 +113,12 @@ ALLOWED_GUI_LITERALS = {
     # Scopes the stylesheet's table rules to the ticket table, so they stop
     # reaching the QTableView inside the ticket dialog's calendar popup.
     "ticketTable",
+    # Qt's own names for the internals of a QCalendarWidget. Not ours and not
+    # translatable: they are the handles Qt's stylesheet documentation uses, and
+    # ticket_dialog.py reaches these two to clear an icon a stylesheet cannot
+    # recolour.
+    "qt_calendar_nextmonth",
+    "qt_calendar_prevmonth",
     # Theme tokens and resource loading.
     "dark",
     "light",

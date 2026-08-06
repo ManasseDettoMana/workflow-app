@@ -133,6 +133,86 @@ QComboBox QAbstractItemView {
     padding: 4px;
 }
 
+/* Calendar popup ------------------------------------------------------- */
+/* The "Scadenza" QDateEdit's popup, which was entirely unthemed: a native white
+ * calendar hanging off a dark dialog. Reached through Qt's own names for the
+ * widget's internals - qt_calendar_* are what Qt's stylesheet documentation
+ * uses, and they have not moved since Qt 4.
+ *
+ * The parts a stylesheet cannot reach are set in gui/ticket_dialog.py: Qt gives
+ * the weekend a hard-coded red QTextCharFormat, and the month arrows a QIcon
+ * baked from the style. Neither is reachable from here. */
+
+#qt_datetimedit_calendar {
+    background-color: #ffffff;
+    border: 1px solid #cbd2d9;
+    border-radius: 6px;
+}
+
+QCalendarWidget {
+    background-color: #ffffff;
+}
+
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background-color: #ffffff;
+    border-bottom: 1px solid #dfe3e8;
+    min-height: 34px;
+}
+
+QCalendarWidget QToolButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 4px 10px;
+    color: #1f2933;
+    font-weight: 600;
+}
+
+QCalendarWidget QToolButton:hover {
+    background-color: #eef2f7;
+    border-color: #d5dbe3;
+}
+
+QCalendarWidget QToolButton:pressed {
+    background-color: #e2e8f0;
+}
+
+QCalendarWidget QToolButton#qt_calendar_prevmonth,
+QCalendarWidget QToolButton#qt_calendar_nextmonth {
+    padding: 4px;
+    min-width: 26px;
+}
+
+QCalendarWidget QSpinBox#qt_calendar_yearedit {
+    background-color: #ffffff;
+    border: 1px solid #cbd2d9;
+    border-radius: 4px;
+    padding: 2px 6px;
+    color: #1f2933;
+}
+
+/* The day grid. Deliberately no ::item rule anywhere in this section:
+ * QCalendarWidget::paintCell draws the days itself, out of this view's palette,
+ * and declaring ::item would hand the cell to QStyleSheetStyle and paint over
+ * it. The four properties below are the ones QStyleSheetStyle folds into
+ * QPalette Base, Text, Highlight and HighlightedText - which is exactly what
+ * paintCell reads. Measured, not assumed. */
+QCalendarWidget QAbstractItemView#qt_calendar_calendarview {
+    background-color: #ffffff;
+    color: #1f2933;
+    selection-background-color: #2563eb;
+    selection-color: #ffffff;
+    border: none;
+    outline: none;
+}
+
+/* Days belonging to the neighbouring month, which paintCell takes from the
+ * palette's Disabled group. Below AA on purpose - they are meant to recede -
+ * and the same colour the rest of this sheet already disables things in. */
+QCalendarWidget QAbstractItemView#qt_calendar_calendarview:disabled {
+    color: #a4adb8;
+}
+
 /* Lists --------------------------------------------------------------- */
 
 QListWidget {
