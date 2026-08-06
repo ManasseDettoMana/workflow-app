@@ -2,13 +2,14 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Finished and packaged. All seven phases are done, 264 tests pass, and the
+**Current state:** Finished and packaged. All eight phases are done, 271 tests pass, and the
 application has been run end to end against a scratch data file: created a ticket through the
 dialog, closed it, reopened it in a fresh process with everything intact and the theme remembered,
 then corrupted the file by hand and confirmed it reports and preserves rather than overwrites. It
 now also builds into a Windows executable that starts from a Desktop icon.
 
 **Next:** nothing planned. Ideas, none of them committed to, are at the bottom of this file.
+Phase 8 was not planned either - it is what using the application turned up.
 
 ## Phase 1 - Setup
 
@@ -225,11 +226,47 @@ Learned while building it:
   result. A hand-written ticket file made this way is quarantined as corrupt - which is invariant 3
   working correctly, and confusing for exactly as long as it takes to notice the BOM.
 
+## Phase 8 - The overdue filter, and a selected row you can read
+
+Branch `phase/8-overdue-filter-and-contrast`.
+
+Two unrelated things, found by using the application rather than by planning it.
+
+- [x] `TicketSortProxy.set_overdue_filter` and a "Solo in scadenza" checkbox beside the status
+      combo box. The first item off the list below, and the only one of them the brief implies
+- [x] `QTableView::item:selected` in both stylesheets - the selected row was unreadable
+- [x] Tests: the rule is present in both themes, and the title is measured on screen as still
+      legible once its row is selected
+
+**The selected row bug, because the cause is not where it looks.** The report was "I cannot see
+the ticket's name when it is selected", in the light theme. It was not a colour that needed
+darkening. Declaring `QTableView::item` at all - which both stylesheets do, for padding - hands
+item drawing to `QStyleSheetStyle`, and under Qt's `windows11` style, the default on Windows 11,
+that path takes the selected cell's *background* from the `::item` rule rather than from
+`QTableView`'s `selection-background-color`. With no background declared there, a selected cell
+kept the view's own white, while its text still took `selection-color`. White on white. The dark
+theme had the identical defect and merely looked survivable: the row simply did not change colour.
+
+Worth knowing about it:
+
+- **Only the `windows11` style does this.** `windowsvista`, `Windows` and `Fusion` all paint the
+  selection correctly with or without the rule - and `Fusion` is what the offscreen platform picks,
+  so the test in CI would have measured a passing case forever. `tests/test_main_window.py` forces
+  the style, or it would be asserting nothing.
+- **The test measures pixels, not the stylesheet.** It finds the title's glyphs in an unselected
+  row, where they are easy to see, then looks at those same pixels once the row is selected. That
+  is a check on what the user sees; a check on the text of the `.qss` would have passed throughout
+  the bug, since `selection-color: #ffffff` was there all along and did nothing.
+- **A delegate for this was written and then deleted.** The worry was that the model's
+  `ForegroundRole` - the muted grey of "Aggiornato", the red of an overdue date - would be painted
+  on the blue selection. Measured with the delegate in and out, the rendered pixels were identical:
+  the `::item:selected` rule already outranks a `ForegroundRole`. It would have been code that
+  looked load-bearing and was not.
+
 ## Possible future work
 
 None of this is planned, and none of it is needed for the brief.
 
-- Filtering by "overdue" as well as by status.
 - Reordering activities within a ticket.
 - Exporting a ticket, or the list, as text.
 - Signing the executable, so Windows stops warning on first run. Needs a certificate.

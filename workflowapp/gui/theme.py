@@ -55,6 +55,9 @@ class Palette:
     def muted_color(self) -> QColor:
         return QColor(self.muted)
 
+    def selected_text_color(self) -> QColor:
+        return QColor(self.selected_text)
+
 
 PALETTES: dict[Theme, Palette] = {
     Theme.LIGHT: Palette(

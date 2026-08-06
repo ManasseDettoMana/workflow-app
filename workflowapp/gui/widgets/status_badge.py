@@ -103,13 +103,13 @@ class StatusDelegate(QStyledItemDelegate):
             painter,
             dot_rect,
             palette.status_color(status),
-            ring=QColor(palette.selected_text) if selected else None,
+            ring=palette.selected_text_color() if selected else None,
         )
 
         text_rect = rect.adjusted(DOT_DIAMETER + DOT_TEXT_GAP, 0, 0, 0)
         painter.save()
         if selected:
-            painter.setPen(QColor(palette.selected_text))
+            painter.setPen(palette.selected_text_color())
         else:
             painter.setPen(opt.palette.text().color())
         painter.drawText(

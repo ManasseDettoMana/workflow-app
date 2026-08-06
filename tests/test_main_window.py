@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date, timedelta
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication, QMessageBox, QStyleFactory
 
 from workflowapp.core.manager import TicketManager
 from workflowapp.core.models import Status
@@ -206,6 +208,122 @@ class TestTheme:
         after = window._status_filter.itemIcon(1).pixmap(14, 14).toImage()
         assert before != after
 
+
+#: WCAG AA for body text.
+MIN_CONTRAST = 4.5
+
+#: How much of the title's ink has to survive being selected. Antialiased edge
+#: pixels always lose contrast when the background darkens - white on blue has
+#: less headroom than black on white - so the whole glyph never survives. The
+#: failure this guards against leaves nothing at all: about a third gets through
+#: when it works, and none of it when it does not.
+MIN_INK_SURVIVING = 0.25
+
+
+def _luminance(color: QColor) -> float:
+    """WCAG relative luminance."""
+
+    def channel(value: int) -> float:
+        v = value / 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    return (
+        0.2126 * channel(color.red())
+        + 0.7152 * channel(color.green())
+        + 0.0722 * channel(color.blue())
+    )
+
+
+def _contrast(one: QColor, other: QColor) -> float:
+    high, low = sorted((_luminance(one), _luminance(other)), reverse=True)
+    return (high + 0.05) / (low + 0.05)
+
+
+@pytest.fixture
+def windows11_style(qapp):
+    """Force the Qt style the bug below belongs to, and put back the old one.
+
+    Left to the runner's default this test proves nothing: under Fusion - what
+    the offscreen platform picks, and so what CI would otherwise measure - the
+    selected row renders correctly with or without the fix.
+    """
+    style = QStyleFactory.create("windows11")
+    if style is None:
+        pytest.skip("the windows11 style is not available on this platform")
+    previous = qapp.style().objectName()
+    qapp.setStyle(style)
+    yield
+    qapp.setStyle(QStyleFactory.create(previous) or QStyleFactory.create("Fusion"))
+
+
+class TestSelectedRowIsReadable:
+    """The title has to still be legible once its row is selected.
+
+    Rendered rather than read off the stylesheet, because what goes wrong is a
+    style's doing and not a colour's. Under Qt's "windows11" style - the default
+    on Windows 11 - declaring ``QTableView::item`` at all hands item drawing to
+    the stylesheet, which then paints the selected cell with ``selection-color``
+    for the text and the view's own ``background-color`` behind it: white on
+    white, and the ticket's title disappears. Every other style paints it from
+    the palette and is unaffected, which is why this forces the style.
+    """
+
+    @staticmethod
+    def _title_pixels(window, *, selected: bool) -> dict[tuple[int, int], int]:
+        table = window._table
+        table.selectRow(0) if selected else table.clearSelection()
+        QApplication.processEvents()
+        rect = table.visualRect(window._proxy.index(0, int(Column.TITLE)))
+        image = table.viewport().grab(rect).toImage()
+        return {
+            (x, y): image.pixel(x, y)
+            for y in range(image.height())
+            for x in range(image.width())
+        }
+
+    @staticmethod
+    def _background(pixels: dict[tuple[int, int], int]) -> QColor:
+        # The commonest colour in a cell of text is the cell's background.
+        return QColor.fromRgb(Counter(pixels.values()).most_common(1)[0][0])
+
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_the_title_survives_being_selected(self, windows11_style, window, qtbot, qapp, which):
+        del windows11_style
+        theme.apply_theme(qapp, which)
+        window.show()
+        qtbot.waitExposed(window)
+
+        plain = self._title_pixels(window, selected=False)
+        plain_background = self._background(plain)
+        # The glyphs, located while they are still easy to see. The same pixels
+        # are then looked at again once the row is selected, which is what makes
+        # this a measurement of the text rather than of whatever else the style
+        # drew in the cell.
+        ink = [
+            at
+            for at, pixel in plain.items()
+            if _contrast(QColor.fromRgb(pixel), plain_background) >= MIN_CONTRAST
+        ]
+        if len(ink) < 50:
+            # No fonts on the runner, nothing rasterised. Better skipped than
+            # failed for a reason that has nothing to do with the colours.
+            pytest.skip("the title rendered no text to measure")
+
+        selected = self._title_pixels(window, selected=True)
+        background = self._background(selected)
+        assert background != plain_background, (
+            f"the selected row is painted {background.name()}, the same as an "
+            f"unselected one, in the {which.value} theme"
+        )
+
+        surviving = sum(
+            1 for at in ink if _contrast(QColor.fromRgb(selected[at]), background) >= MIN_CONTRAST
+        )
+        assert surviving >= len(ink) * MIN_INK_SURVIVING, (
+            f"only {surviving} of {len(ink)} pixels of the title still reach "
+            f"{MIN_CONTRAST}:1 against {background.name()} once the row is "
+            f"selected, in the {which.value} theme"
+        )
 
 def _answer(monkeypatch, button_text: str) -> None:
     """Make the next QMessageBox answer with the button carrying this text."""

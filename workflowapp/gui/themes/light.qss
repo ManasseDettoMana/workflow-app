@@ -70,6 +70,17 @@ QTableView::item {
     border: none;
 }
 
+/* Not the same thing as the selection-* pair above, and not redundant with it.
+ * Declaring QTableView::item at all hands item drawing to the stylesheet, and it
+ * then takes the selected cell's background from this rule rather than from
+ * QTableView's. Left out, under Qt's "windows11" style the cell keeps the view's
+ * white background and still takes selection-color for its text: white on white,
+ * and the ticket title vanishes the moment its row is selected. */
+QTableView::item:selected {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+
 QHeaderView::section {
     background-color: #ffffff;
     color: #52606d;
