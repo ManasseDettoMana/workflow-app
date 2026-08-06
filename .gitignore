@@ -19,6 +19,10 @@ venv/
 # can point it at the working tree, and a personal ticket list is not source.
 tickets.json
 tickets.json.corrupt-*
+# A scratch data directory to point WORKFLOWAPP_DATA_DIR at. Named here rather
+# than left to the rule above, which only covers it for as long as the only
+# thing inside it happens to be called tickets.json.
+.demo/
 
 # Editors
 .vscode/
