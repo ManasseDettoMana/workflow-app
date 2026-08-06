@@ -45,6 +45,13 @@ class Palette:
     overdue: str
     muted: str
     selected_text: str
+    #: The label colour on a selection in a window that is not the active one.
+    #: The stylesheet paints that selection far paler than the focused one, and
+    #: ``selected_text`` there would be white on near-white.
+    selected_text_inactive: str
+    #: What the toolbar icons are drawn in. It is the same value the stylesheet
+    #: gives QToolButton: the same ink, drawn two different ways.
+    icon: str
 
     def status_color(self, status: Status) -> QColor:
         return QColor(self.statuses[status])
@@ -57,6 +64,12 @@ class Palette:
 
     def selected_text_color(self) -> QColor:
         return QColor(self.selected_text)
+
+    def selected_text_inactive_color(self) -> QColor:
+        return QColor(self.selected_text_inactive)
+
+    def icon_color(self) -> QColor:
+        return QColor(self.icon)
 
 
 PALETTES: dict[Theme, Palette] = {
@@ -72,6 +85,8 @@ PALETTES: dict[Theme, Palette] = {
         overdue="#b91c1c",
         muted="#6b7280",
         selected_text="#ffffff",
+        selected_text_inactive="#1f2933",
+        icon="#1f2933",
     ),
     Theme.DARK: Palette(
         statuses={
@@ -83,6 +98,8 @@ PALETTES: dict[Theme, Palette] = {
         overdue="#f87171",
         muted="#9aa3b2",
         selected_text="#ffffff",
+        selected_text_inactive="#e4e7eb",
+        icon="#e4e7eb",
     ),
 }
 

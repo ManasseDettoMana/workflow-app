@@ -93,6 +93,7 @@ ALLOWED_GUI_LITERALS = {
     "{} - {}",
     # Theme palette colours.
     "#15803d",
+    "#1f2933",
     "#2563eb",
     "#4ade80",
     "#60a5fa",
@@ -100,6 +101,7 @@ ALLOWED_GUI_LITERALS = {
     "#9aa3b2",
     "#b45309",
     "#b91c1c",
+    "#e4e7eb",
     "#f87171",
     "#fbbf24",
     "#ffffff",

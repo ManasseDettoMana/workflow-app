@@ -101,6 +101,17 @@ class TestPalettes:
         theme.apply_theme(qapp, theme.Theme.LIGHT)
         assert theme.active_palette().status_color(Status.URGENT).name() == "#b91c1c"
 
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_every_theme_has_a_quieter_ink_for_an_unfocused_selection(self, which):
+        # The stylesheet paints an unfocused selection much paler than a focused
+        # one, and the status delegate picks its pen from these two. If they ever
+        # converge, one of the two backgrounds is being written on in the other's
+        # ink.
+        palette = theme.PALETTES[which]
+        assert palette.selected_text_inactive != palette.selected_text
+        assert palette.selected_text_inactive_color().isValid()
+        assert palette.icon_color().isValid()
+
     def test_other_toggles(self):
         assert theme.Theme.LIGHT.other() is theme.Theme.DARK
         assert theme.Theme.DARK.other() is theme.Theme.LIGHT
