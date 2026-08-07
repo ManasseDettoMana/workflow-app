@@ -45,6 +45,9 @@ from .widgets.ticket_table import (
 
 WINDOW_GEOMETRY_KEY = "window/geometry"
 WINDOW_STATE_KEY = "window/state"
+#: One key for the whole header: QHeaderView.saveState already encodes the
+#: column widths, the sort indicator's section and its order.
+TABLE_HEADER_KEY = "table/header"
 
 
 class MainWindow(QMainWindow):
@@ -62,10 +65,11 @@ class MainWindow(QMainWindow):
         self._build_toolbar()
         self._build_body()
         self._build_shortcuts()
-        self.setStatusBar(QStatusBar(self))
+        self._build_status_bar()
 
         self._restore_geometry()
         self.refresh()
+        self._restore_table_header()
 
     # ------------------------------------------------------------ building
 
@@ -159,10 +163,15 @@ class MainWindow(QMainWindow):
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(int(Column.TITLE), QHeaderView.ResizeMode.Stretch)
         for column in (Column.STATUS, Column.DUE_DATE, Column.ACTIVITIES, Column.UPDATED):
-            header.setSectionResizeMode(int(column), QHeaderView.ResizeMode.ResizeToContents)
+            # Interactive, not ResizeToContents: neither Stretch nor
+            # ResizeToContents can be dragged, so under those there is no width
+            # for _restore_geometry to remember. Seeded from the contents once
+            # below, when there is nothing saved.
+            header.setSectionResizeMode(int(column), QHeaderView.ResizeMode.Interactive)
         header.setHighlightSections(False)
 
         # Most recently updated first, which is what "what was I doing?" means.
+        # A saved header state overrides this in _restore_geometry.
         self._table.sortByColumn(int(Column.UPDATED), Qt.SortOrder.DescendingOrder)
 
         layout.addWidget(self._table)
@@ -203,6 +212,30 @@ class MainWindow(QMainWindow):
         row.addWidget(self._overdue_check)
 
         return row
+
+    def _build_status_bar(self) -> None:
+        """Two labels rather than one temporary message.
+
+        Nothing in this window may ever call ``statusBar().showMessage()``
+        again. A widget added with ``addWidget`` is hidden for as long as a
+        temporary message is up, so a single stray call blanks the count until
+        something else redraws it.
+
+        The badge sits on the right, through ``addPermanentWidget``, and is
+        hidden outright when nothing is late - a "0 in ritardo" is a number to
+        read and dismiss on every glance.
+        """
+        bar = QStatusBar(self)
+
+        self._status_label = QLabel(bar)
+        self._status_label.setObjectName("statusLabel")
+        bar.addWidget(self._status_label)
+
+        self._overdue_label = QLabel(bar)
+        self._overdue_label.setObjectName("overdueLabel")
+        bar.addPermanentWidget(self._overdue_label)
+
+        self.setStatusBar(bar)
 
     def _build_shortcuts(self) -> None:
         """The two keys that belong to no button.
@@ -439,12 +472,13 @@ class MainWindow(QMainWindow):
     def _update_status_bar(self) -> None:
         total = len(self._manager.tickets())
         visible = self._proxy.rowCount()
-        message = strings.STATUS_BAR_COUNT.format(visibili=visible, totali=total)
+        self._status_label.setText(
+            strings.STATUS_BAR_COUNT.format(visibili=visible, totali=total)
+        )
 
         overdue = sum(1 for t in self._manager.tickets() if t.is_overdue)
-        if overdue:
-            message = f"{message} - {strings.STATUS_BAR_OVERDUE.format(scaduti=overdue)}"
-        self.statusBar().showMessage(message)
+        self._overdue_label.setText(strings.STATUS_BAR_OVERDUE.format(scaduti=overdue))
+        self._overdue_label.setVisible(bool(overdue))
 
         empty = visible == 0
         self._empty_label.setVisible(empty)
@@ -465,10 +499,32 @@ class MainWindow(QMainWindow):
         if state:
             self.restoreState(state)
 
+    def _restore_table_header(self) -> None:
+        """The column widths and the sort indicator, from the last session.
+
+        Called after the first ``refresh``, not with the window geometry: with
+        no rows in the model there is nothing for the first-run fallback below
+        to measure, and every column would come out the width of its heading.
+        """
+        state = theme.settings().value(TABLE_HEADER_KEY)
+        if state:
+            # saveState carries the sort indicator's section and order as well
+            # as the column widths, so this is also what makes the sort stick.
+            # It carries the resize modes too, which is the trap: changing them
+            # in _build_body will look like it had no effect on any machine with
+            # a saved state, and nothing in the running application says why.
+            # Rename this key if the modes ever change again.
+            self._table.horizontalHeader().restoreState(state)
+        else:
+            # First run. An Interactive column starts at the header's default
+            # width, which is far too wide for a status or a date.
+            self._table.resizeColumnsToContents()
+
     def closeEvent(self, event) -> None:
         settings = theme.settings()
         settings.setValue(WINDOW_GEOMETRY_KEY, self.saveGeometry())
         settings.setValue(WINDOW_STATE_KEY, self.saveState())
+        settings.setValue(TABLE_HEADER_KEY, self._table.horizontalHeader().saveState())
         super().closeEvent(event)
 
 

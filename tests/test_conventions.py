@@ -88,7 +88,6 @@ class TestNoEmoji:
 ALLOWED_GUI_LITERALS = {
     # Separators and format templates.
     "\n",
-    " - ",
     "/",
     "{} - {}",
     # Theme palette colours.
@@ -109,7 +108,9 @@ ALLOWED_GUI_LITERALS = {
     "activityButton",
     "emptyLabel",
     "metaLabel",
+    "overdueLabel",
     "sectionLabel",
+    "statusLabel",
     # Scopes the stylesheet's table rules to the ticket table, so they stop
     # reaching the QTableView inside the ticket dialog's calendar popup.
     "ticketTable",
@@ -128,6 +129,7 @@ ALLOWED_GUI_LITERALS = {
     "workflowapp.gui",
     "assets/app.ico",
     # QSettings keys.
+    "table/header",
     "theme",
     "window/geometry",
     "window/state",

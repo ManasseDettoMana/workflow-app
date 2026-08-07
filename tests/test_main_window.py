@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import ast
 import re
 from collections import Counter
 from datetime import date, timedelta
 from itertools import combinations
+from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QEvent, QPoint, Qt
@@ -13,6 +15,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
+    QHeaderView,
     QMessageBox,
     QStyle,
     QStyleFactory,
@@ -23,6 +26,7 @@ from PySide6.QtWidgets import (
 from workflowapp.core.manager import TicketManager
 from workflowapp.core.models import Status
 from workflowapp.gui import icons, strings, theme
+from workflowapp.gui import main_window as main_window_module
 from workflowapp.gui.main_window import MainWindow
 from workflowapp.gui.ticket_dialog import TicketDialog
 from workflowapp.gui.widgets.status_badge import StatusDelegate
@@ -186,18 +190,45 @@ class TestFiltering:
 
 
 class TestStatusBar:
+    """Two labels, not a temporary message.
+
+    ``showMessage`` hides everything added with ``addWidget`` for as long as the
+    message is up, so the count and the badge have to be widgets or a single
+    stray call blanks them.
+    """
+
     def test_it_counts_visible_and_total(self, window):
         window._search.setText("fornitore")
-        message = window.statusBar().currentMessage()
-        assert "1" in message and "3" in message
+        assert "1" in window._status_label.text()
+        assert "3" in window._status_label.text()
 
-    def test_overdue_tickets_are_mentioned(self, qtbot, qapp, ticket_file):
+    def test_overdue_tickets_get_their_own_badge(self, qtbot, qapp, ticket_file):
         del qapp
         manager = TicketManager(ticket_file)
         manager.add_ticket("In ritardo", due_date=date.today() - timedelta(days=3))
         window = MainWindow(manager)
         qtbot.addWidget(window)
-        assert "ritardo" in window.statusBar().currentMessage()
+        window.show()
+        assert window._overdue_label.isVisible()
+        assert "ritardo" in window._overdue_label.text()
+
+    def test_the_badge_is_hidden_when_nothing_is_late(self, window):
+        window.show()
+        # "0 in ritardo" is a number to read and dismiss on every glance.
+        assert not window._overdue_label.isVisible()
+
+    def test_nothing_ever_calls_show_message(self):
+        # The count is a widget now, and a widget added with addWidget is hidden
+        # for as long as a temporary message is up. One stray showMessage blanks
+        # the bar, and nothing about the blank bar says why - which is why this
+        # is asserted about the module rather than left to a review comment.
+        tree = ast.parse(Path(main_window_module.__file__).read_text(encoding="utf-8"))
+        called = [
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        ]
+        assert "showMessage" not in called
 
 
 class TestTheme:
@@ -540,6 +571,52 @@ class TestContextMenu:
         shown._context_menu_at(self._at_row(shown, 0))
         first_by_title = sorted(manager.tickets(), key=lambda t: t.title.casefold())[0]
         assert shown.selected_ticket_id() == first_by_title.id
+
+
+class TestTheHeaderLayoutIsRemembered:
+    """The sort and the column widths survive a restart.
+
+    One QSettings key: QHeaderView.saveState already carries the widths, the
+    sort indicator's section and its order.
+    """
+
+    @staticmethod
+    def _reopen(qtbot, manager) -> MainWindow:
+        window = MainWindow(manager)
+        qtbot.addWidget(window)
+        window.show()
+        QApplication.processEvents()
+        return window
+
+    def test_the_sort_column_comes_back(self, window, qtbot, manager):
+        window.show()
+        window._table.sortByColumn(int(Column.TITLE), Qt.SortOrder.AscendingOrder)
+        window.close()
+
+        again = self._reopen(qtbot, manager)
+        header = again._table.horizontalHeader()
+        assert header.sortIndicatorSection() == int(Column.TITLE)
+        assert header.sortIndicatorOrder() is Qt.SortOrder.AscendingOrder
+
+    def test_a_column_width_comes_back(self, window, qtbot, manager):
+        window.show()
+        QApplication.processEvents()
+        window._table.setColumnWidth(int(Column.DUE_DATE), 173)
+        window.close()
+
+        again = self._reopen(qtbot, manager)
+        assert again._table.columnWidth(int(Column.DUE_DATE)) == 173
+
+    def test_the_columns_a_user_can_drag_are_the_ones_that_are_remembered(self, window):
+        # Neither Stretch nor ResizeToContents can be dragged, so under those
+        # there is no width to remember and the key would store something
+        # nothing could ever change.
+        header = window._table.horizontalHeader()
+        assert header.sectionResizeMode(int(Column.TITLE)) is QHeaderView.ResizeMode.Stretch
+        for column in (Column.STATUS, Column.DUE_DATE, Column.ACTIVITIES, Column.UPDATED):
+            assert (
+                header.sectionResizeMode(int(column)) is QHeaderView.ResizeMode.Interactive
+            )
 
 
 class TestToolbarIcons:

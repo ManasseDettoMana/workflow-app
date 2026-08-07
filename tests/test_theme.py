@@ -116,6 +116,16 @@ class TestStylesheets:
         assert "QMenu {" in qss
         assert "QMenu::item:selected" in qss
 
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_the_status_bar_labels_are_transparent(self, which):
+        # Not tidiness. These two sit on the status bar rather than on the
+        # window, so without an explicit transparent background the global
+        # QWidget rule paints the window colour as two patches on the bar.
+        qss = theme.stylesheet(which)
+        for selector in ("QLabel#statusLabel", "QLabel#overdueLabel"):
+            rule = qss.partition(f"{selector} {{")[2].partition("}")[0]
+            assert "background-color: transparent" in rule, selector
+
     def test_neither_stylesheet_styles_the_status_column(self):
         # The delegate owns that column. A rule here would be a second opinion
         # about it, and the two would drift.

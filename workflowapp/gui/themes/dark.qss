@@ -335,6 +335,22 @@ QStatusBar::item {
     border: none;
 }
 
+/* See the same two rules in light.qss for why the transparent background is
+ * load-bearing. The overdue red is the palette's, not the light theme's: that
+ * one is 2.4:1 on this bar. */
+QLabel#statusLabel {
+    background-color: transparent;
+    color: #9aa3b2;
+    padding: 0 4px;
+}
+
+QLabel#overdueLabel {
+    background-color: transparent;
+    color: #f87171;
+    font-weight: 600;
+    padding: 0 4px;
+}
+
 QCheckBox {
     spacing: 8px;
 }

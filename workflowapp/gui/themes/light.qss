@@ -358,6 +358,23 @@ QStatusBar::item {
     border: none;
 }
 
+/* The transparent background is load-bearing, not tidiness: these two sit on
+ * the status bar rather than on the window, and without it the global QWidget
+ * rule paints the window's #f4f6f8 as two grey patches on the white bar. The
+ * labels above get away without it because they sit on the window itself. */
+QLabel#statusLabel {
+    background-color: transparent;
+    color: #52606d;
+    padding: 0 4px;
+}
+
+QLabel#overdueLabel {
+    background-color: transparent;
+    color: #b91c1c;
+    font-weight: 600;
+    padding: 0 4px;
+}
+
 QCheckBox {
     spacing: 8px;
 }
