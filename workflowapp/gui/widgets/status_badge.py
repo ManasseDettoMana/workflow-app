@@ -17,13 +17,13 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QStyle,
-    QStyledItemDelegate,
     QStyleOptionViewItem,
 )
 
 from workflowapp.core.models import Status
 
 from .. import strings, theme
+from .table_view import RowHoverDelegate
 
 #: The model supplies the Status itself under this role. The delegate needs the
 #: value, not the label, and re-deriving one from the other would mean parsing
@@ -74,8 +74,30 @@ def _paint_dot(painter: QPainter, rect: QRect, color: QColor, ring: QColor | Non
     painter.restore()
 
 
-class StatusDelegate(QStyledItemDelegate):
-    """Draws the status column as a coloured dot followed by its Italian label."""
+class StatusDelegate(RowHoverDelegate):
+    """Draws the status column as a coloured dot followed by its Italian label.
+
+    Inherits the row hover rather than ``QStyledItemDelegate`` directly, or this
+    would be the one column that stays dark while the rest of its row lights up.
+    """
+
+    @staticmethod
+    def _text_pen(palette: theme.Palette, opt: QStyleOptionViewItem) -> QColor:
+        """The label's colour, which depends on the window's focus as well as
+        on whether the row is selected.
+
+        The stylesheet paints an unfocused selection far paler than a focused one
+        - QTableView#ticketTable::item:selected:!active - and the white that
+        reads on the focused blue is 1.2:1 on the pale one. ``State_Active`` is
+        how the view says which of the two backgrounds is actually behind this
+        cell. A stylesheet cannot reach inside a delegate, so this is the only
+        place the two can be kept in agreement.
+        """
+        if not (opt.state & QStyle.StateFlag.State_Selected):
+            return opt.palette.text().color()
+        if opt.state & QStyle.StateFlag.State_Active:
+            return palette.selected_text_color()
+        return palette.selected_text_inactive_color()
 
     def paint(
         self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
@@ -94,8 +116,15 @@ class StatusDelegate(QStyledItemDelegate):
         style = widget.style() if widget is not None else QApplication.style()
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, widget)
 
-        selected = bool(opt.state & QStyle.StateFlag.State_Selected)
         palette = theme.active_palette()
+        # The ring is for the saturated focused selection, where a blue "Aperto"
+        # dot lands on blue. The unfocused selection is pale enough that the dot
+        # stands out unaided, and a dark ring around a 10px circle there reads as
+        # a smudge rather than as an outline.
+        on_focused_selection = bool(
+            opt.state & QStyle.StateFlag.State_Selected
+            and opt.state & QStyle.StateFlag.State_Active
+        )
 
         rect = opt.rect.adjusted(CELL_PADDING, 0, -CELL_PADDING, 0)
         dot_rect = QRect(rect.left(), rect.top(), DOT_DIAMETER, rect.height())
@@ -103,15 +132,12 @@ class StatusDelegate(QStyledItemDelegate):
             painter,
             dot_rect,
             palette.status_color(status),
-            ring=palette.selected_text_color() if selected else None,
+            ring=palette.selected_text_color() if on_focused_selection else None,
         )
 
         text_rect = rect.adjusted(DOT_DIAMETER + DOT_TEXT_GAP, 0, 0, 0)
         painter.save()
-        if selected:
-            painter.setPen(palette.selected_text_color())
-        else:
-            painter.setPen(opt.palette.text().color())
+        painter.setPen(self._text_pen(palette, opt))
         painter.drawText(
             text_rect,
             int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),

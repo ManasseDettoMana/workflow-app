@@ -73,6 +73,11 @@ QTableView#ticketTable::item {
     border: none;
 }
 
+/* Before the selection rules - see light.qss for why the order matters. */
+QTableView#ticketTable::item:hover {
+    background-color: #343c49;
+}
+
 /* See the same rule in light.qss. Declaring QTableView::item hands item drawing
  * to the stylesheet, which then takes the selected cell's background from here
  * rather than from QTableView's selection-background-color. Left out, under Qt's
@@ -82,6 +87,14 @@ QTableView#ticketTable::item {
 QTableView#ticketTable::item:selected {
     background-color: #2f6fd0;
     color: #ffffff;
+}
+
+/* White would in fact survive on this one, at 9.1:1. It gets the palette's
+ * quieter ink anyway: a delegate branch that is correct in one theme by luck is
+ * a branch that breaks the first time somebody retunes the other. */
+QTableView#ticketTable::item:selected:!active {
+    background-color: #35496a;
+    color: #e4e7eb;
 }
 
 QTableView#ticketTable QHeaderView::section {

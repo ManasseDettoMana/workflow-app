@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QStatusBar,
-    QTableView,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -35,6 +34,7 @@ from workflowapp.core.models import Status, Ticket
 from . import strings, theme
 from .ticket_dialog import TicketDialog
 from .widgets.status_badge import StatusDelegate, status_icon
+from .widgets.table_view import RowHoverDelegate, TicketTableView
 from .widgets.ticket_table import (
     TICKET_ID_ROLE,
     Column,
@@ -105,12 +105,16 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(self._build_filter_row())
 
-        self._table = QTableView(central)
+        self._table = TicketTableView(central)
         # The stylesheet's table rules are scoped to this name. A QCalendarWidget
         # keeps its day grid in a QTableView too, so an unscoped rule would reach
         # inside the dialog's date popup and repaint it.
         self._table.setObjectName("ticketTable")
         self._table.setModel(self._proxy)
+        # Both delegates widen Qt's one-cell hover to the row. The default one
+        # covers every plain column; the status column needs its own painter and
+        # inherits the same behaviour.
+        self._table.setItemDelegate(RowHoverDelegate(self._table))
         self._table.setItemDelegateForColumn(int(Column.STATUS), StatusDelegate(self._table))
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)

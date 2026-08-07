@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from datetime import date, timedelta
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication, QMessageBox, QStyleFactory
+from PySide6.QtWidgets import (
+    QApplication,
+    QMessageBox,
+    QStyle,
+    QStyleFactory,
+    QStyleOptionViewItem,
+)
 
 from workflowapp.core.manager import TicketManager
 from workflowapp.core.models import Status
 from workflowapp.gui import strings, theme
 from workflowapp.gui.main_window import MainWindow
+from workflowapp.gui.widgets.status_badge import StatusDelegate
+from workflowapp.gui.widgets.table_view import NO_ROW
 from workflowapp.gui.widgets.ticket_table import Column
 
 pytestmark = pytest.mark.gui
@@ -269,11 +278,11 @@ class TestSelectedRowIsReadable:
     """
 
     @staticmethod
-    def _title_pixels(window, *, selected: bool) -> dict[tuple[int, int], int]:
+    def _cell_pixels(window, column, *, selected: bool) -> dict[tuple[int, int], int]:
         table = window._table
         table.selectRow(0) if selected else table.clearSelection()
         QApplication.processEvents()
-        rect = table.visualRect(window._proxy.index(0, int(Column.TITLE)))
+        rect = table.visualRect(window._proxy.index(0, int(column)))
         image = table.viewport().grab(rect).toImage()
         return {
             (x, y): image.pixel(x, y)
@@ -286,14 +295,20 @@ class TestSelectedRowIsReadable:
         # The commonest colour in a cell of text is the cell's background.
         return QColor.fromRgb(Counter(pixels.values()).most_common(1)[0][0])
 
+    # TITLE is drawn by the stylesheet, STATUS by a delegate that paints its own
+    # text. The delegate is the half no stylesheet rule can fix, so it is the
+    # half worth rendering rather than reading off the .qss.
+    @pytest.mark.parametrize("column", [Column.TITLE, Column.STATUS])
     @pytest.mark.parametrize("which", list(theme.Theme))
-    def test_the_title_survives_being_selected(self, windows11_style, window, qtbot, qapp, which):
+    def test_the_row_survives_being_selected(
+        self, windows11_style, window, qtbot, qapp, which, column
+    ):
         del windows11_style
         theme.apply_theme(qapp, which)
         window.show()
         qtbot.waitExposed(window)
 
-        plain = self._title_pixels(window, selected=False)
+        plain = self._cell_pixels(window, column, selected=False)
         plain_background = self._background(plain)
         # The glyphs, located while they are still easy to see. The same pixels
         # are then looked at again once the row is selected, which is what makes
@@ -307,9 +322,9 @@ class TestSelectedRowIsReadable:
         if len(ink) < 50:
             # No fonts on the runner, nothing rasterised. Better skipped than
             # failed for a reason that has nothing to do with the colours.
-            pytest.skip("the title rendered no text to measure")
+            pytest.skip(f"the {column.name} column rendered no text to measure")
 
-        selected = self._title_pixels(window, selected=True)
+        selected = self._cell_pixels(window, column, selected=True)
         background = self._background(selected)
         assert background != plain_background, (
             f"the selected row is painted {background.name()}, the same as an "
@@ -320,10 +335,102 @@ class TestSelectedRowIsReadable:
             1 for at in ink if _contrast(QColor.fromRgb(selected[at]), background) >= MIN_CONTRAST
         )
         assert surviving >= len(ink) * MIN_INK_SURVIVING, (
-            f"only {surviving} of {len(ink)} pixels of the title still reach "
-            f"{MIN_CONTRAST}:1 against {background.name()} once the row is "
-            f"selected, in the {which.value} theme"
+            f"only {surviving} of {len(ink)} pixels of the {column.name} column "
+            f"still reach {MIN_CONTRAST}:1 against {background.name()} once the "
+            f"row is selected, in the {which.value} theme"
         )
+
+
+class TestTheUnfocusedSelectionStaysReadable:
+    """The status label has to survive the window losing focus, too.
+
+    Deliberately not a rendered test. ``State_Active`` follows
+    ``isActiveWindow()``, which is false under ``QT_QPA_PLATFORM=offscreen``, so
+    a rendering would measure whichever branch the platform happened to land on
+    and would pass just as happily with the branch removed. The decision is
+    named instead, and the contrast it depends on is checked against the
+    stylesheet that actually paints the background.
+    """
+
+    @staticmethod
+    def _option(*, selected: bool, active: bool) -> QStyleOptionViewItem:
+        opt = QStyleOptionViewItem()
+        if selected:
+            opt.state |= QStyle.StateFlag.State_Selected
+        if active:
+            opt.state |= QStyle.StateFlag.State_Active
+        return opt
+
+    @staticmethod
+    def _inactive_background(which) -> QColor:
+        rule = (
+            theme.stylesheet(which)
+            .partition("#ticketTable::item:selected:!active {")[2]
+            .partition("}")[0]
+        )
+        found = re.search(r"background-color:\s*(#[0-9a-fA-F]{6})", rule)
+        assert found, f"the {which.value} theme has no unfocused-selection rule"
+        return QColor(found.group(1))
+
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_an_active_selection_takes_the_light_ink(self, which):
+        palette = theme.PALETTES[which]
+        pen = StatusDelegate._text_pen(palette, self._option(selected=True, active=True))
+        assert pen == palette.selected_text_color()
+
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_an_unfocused_selection_takes_the_quieter_ink(self, which):
+        palette = theme.PALETTES[which]
+        pen = StatusDelegate._text_pen(palette, self._option(selected=True, active=False))
+        assert pen == palette.selected_text_inactive_color()
+
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_an_unselected_row_takes_the_palettes_own_text(self, which):
+        opt = self._option(selected=False, active=True)
+        pen = StatusDelegate._text_pen(theme.PALETTES[which], opt)
+        assert pen == opt.palette.text().color()
+
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_the_quieter_ink_is_readable_on_the_quieter_background(self, which):
+        # The pairing the delegate and the stylesheet have to agree on. Retuning
+        # one of the two colours without the other is what this catches, and
+        # white on the light theme's pale selection is 1.2:1.
+        ink = theme.PALETTES[which].selected_text_inactive_color()
+        assert _contrast(ink, self._inactive_background(which)) >= MIN_CONTRAST
+
+
+class TestRowHover:
+    """Qt hovers one cell; this table hovers the row.
+
+    ``QAbstractItemView`` gives ``State_MouseOver`` to the index under the
+    pointer alone. With SelectRows in force, one tinted cell reads as a rendering
+    fault, so the view tracks the row and the delegates widen the state to it.
+    """
+
+    @staticmethod
+    def _state_for(window, row: int, column) -> QStyleOptionViewItem:
+        index = window._proxy.index(row, int(column))
+        delegate = window._table.itemDelegateForIndex(index)
+        opt = QStyleOptionViewItem()
+        delegate.initStyleOption(opt, index)
+        return opt
+
+    @pytest.mark.parametrize("column", list(Column))
+    def test_the_hover_reaches_every_column_in_the_row(self, window, column):
+        window._table._set_hovered_row(0)
+        opt = self._state_for(window, 0, column)
+        assert opt.state & QStyle.StateFlag.State_MouseOver
+
+    @pytest.mark.parametrize("column", list(Column))
+    def test_a_row_that_is_not_hovered_keeps_its_state_clear(self, window, column):
+        window._table._set_hovered_row(0)
+        opt = self._state_for(window, 1, column)
+        assert not (opt.state & QStyle.StateFlag.State_MouseOver)
+
+    def test_leaving_the_table_drops_the_hover(self, window):
+        window._table._set_hovered_row(0)
+        window._table.leaveEvent(QEvent(QEvent.Type.Leave))
+        assert window._table.hovered_row() == NO_ROW
 
 def _answer(monkeypatch, button_text: str) -> None:
     """Make the next QMessageBox answer with the button carrying this text."""

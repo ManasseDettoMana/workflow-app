@@ -75,6 +75,17 @@ QTableView#ticketTable::item {
     border: none;
 }
 
+/* Before the selection rules on purpose. A hovered selected row matches both
+ * :hover and :selected at the same specificity, and Qt gives the later rule the
+ * argument - the selection is the one that has to win.
+ *
+ * Declaring ::item took the native hover away with it, so without this there is
+ * no pointer feedback at all. Qt hovers one cell where this table wants a whole
+ * row; gui/widgets/table_view.py is what widens it. */
+QTableView#ticketTable::item:hover {
+    background-color: #e7eef8;
+}
+
 /* Not the same thing as the selection-* pair above, and not redundant with it.
  * Declaring QTableView::item at all hands item drawing to the stylesheet, and it
  * then takes the selected cell's background from this rule rather than from
@@ -84,6 +95,18 @@ QTableView#ticketTable::item {
 QTableView#ticketTable::item:selected {
     background-color: #2563eb;
     color: #ffffff;
+}
+
+/* A selection in a window that is no longer the active one. Quieter, so that
+ * "which window am I typing into?" has an answer.
+ *
+ * The dark text is not decoration: #ffffff on this background is 1.2:1. The
+ * status column is painted by a delegate that cannot see this rule, so
+ * gui/widgets/status_badge.py reads State_Active and picks the palette's
+ * selected_text_inactive - which has to keep agreeing with the colour here. */
+QTableView#ticketTable::item:selected:!active {
+    background-color: #ccdcf8;
+    color: #1f2933;
 }
 
 QTableView#ticketTable QHeaderView::section {
