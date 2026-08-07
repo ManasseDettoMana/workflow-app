@@ -7,7 +7,7 @@ it to the table model, and asks again after anything changes.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, QPoint, Qt
+from PySide6.QtCore import QModelIndex, QPoint, QSize, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -32,7 +32,7 @@ from workflowapp.core.errors import WorkflowAppError
 from workflowapp.core.manager import TicketManager
 from workflowapp.core.models import Status, Ticket
 
-from . import strings, theme
+from . import icons, strings, theme
 from .ticket_dialog import TicketDialog
 from .widgets.status_badge import StatusDelegate, status_icon
 from .widgets.table_view import RowHoverDelegate, TicketTableView
@@ -72,7 +72,8 @@ class MainWindow(QMainWindow):
     def _build_toolbar(self) -> None:
         toolbar = QToolBar(self)
         toolbar.setMovable(False)
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toolbar.setIconSize(QSize(icons.ICON_SIZE, icons.ICON_SIZE))
         self.addToolBar(toolbar)
 
         self.action_new = QAction(strings.ACTION_NEW, self)
@@ -104,6 +105,21 @@ class MainWindow(QMainWindow):
         self.action_theme.setToolTip(strings.ACTION_THEME_TIP)
         self.action_theme.triggered.connect(self.toggle_theme)
         toolbar.addAction(self.action_theme)
+
+        self._apply_action_icons()
+
+    def _apply_action_icons(self) -> None:
+        """Draw the toolbar icons in the ink of whichever theme is active.
+
+        Called on a theme change as well as at construction. Like the status
+        dots these come from the Python palette, not from the stylesheet, so
+        reapplying the sheet does not touch them - left out of ``_retint`` a
+        toggle to the dark theme keeps four dark icons on a dark toolbar.
+        """
+        self.action_new.setIcon(icons.new_icon())
+        self.action_edit.setIcon(icons.edit_icon())
+        self.action_delete.setIcon(icons.delete_icon())
+        self.action_theme.setIcon(icons.theme_icon())
 
     def _build_body(self) -> None:
         central = QWidget(self)
@@ -357,9 +373,11 @@ class MainWindow(QMainWindow):
     def _retint(self) -> None:
         """Repaint everything whose colour came from the theme's Python palette.
 
-        The stylesheet reapplies itself; the status dots and the overdue dates do
-        not, because a delegate and a ForegroundRole are not stylesheet-driven.
+        The stylesheet reapplies itself; the status dots, the toolbar icons and
+        the overdue dates do not, because a delegate, a QIcon and a
+        ForegroundRole are none of them stylesheet-driven.
         """
+        self._apply_action_icons()
         for index in range(self._status_filter.count()):
             status = self._status_filter.itemData(index)
             if status is not None:

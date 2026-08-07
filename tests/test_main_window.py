@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from datetime import date, timedelta
+from itertools import combinations
 
 import pytest
 from PySide6.QtCore import QEvent, QPoint, Qt
@@ -16,11 +17,12 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyleFactory,
     QStyleOptionViewItem,
+    QToolBar,
 )
 
 from workflowapp.core.manager import TicketManager
 from workflowapp.core.models import Status
-from workflowapp.gui import strings, theme
+from workflowapp.gui import icons, strings, theme
 from workflowapp.gui.main_window import MainWindow
 from workflowapp.gui.ticket_dialog import TicketDialog
 from workflowapp.gui.widgets.status_badge import StatusDelegate
@@ -538,6 +540,45 @@ class TestContextMenu:
         shown._context_menu_at(self._at_row(shown, 0))
         first_by_title = sorted(manager.tickets(), key=lambda t: t.title.casefold())[0]
         assert shown.selected_ticket_id() == first_by_title.id
+
+
+class TestToolbarIcons:
+    @staticmethod
+    def _actions(window) -> list:
+        return [
+            window.action_new,
+            window.action_edit,
+            window.action_delete,
+            window.action_theme,
+        ]
+
+    @staticmethod
+    def _drawn(action) -> object:
+        return action.icon().pixmap(icons.ICON_SIZE, icons.ICON_SIZE).toImage()
+
+    def test_every_toolbar_action_carries_one(self, window):
+        assert all(not action.icon().isNull() for action in self._actions(window))
+
+    def test_no_two_of_them_are_the_same_drawing(self, window):
+        # A copy-paste in _apply_action_icons is invisible otherwise: four
+        # buttons all showing the plus still passes "every action has an icon".
+        drawings = [self._drawn(action) for action in self._actions(window)]
+        assert all(one != other for one, other in combinations(drawings, 2))
+
+    def test_the_label_stays_beside_the_icon(self, window):
+        # Icon-only would be four glyphs nobody has seen before, in an
+        # application whose whole interface is words.
+        toolbar = window.findChild(QToolBar)
+        assert toolbar.toolButtonStyle() is Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+
+    def test_they_are_repainted_on_a_theme_change(self, window):
+        # The mirror of test_the_status_icons_are_repainted, and what catches
+        # _apply_action_icons being left out of _retint. A QIcon is not
+        # stylesheet-driven, so without it the dark toolbar keeps dark icons.
+        before = [self._drawn(action) for action in self._actions(window)]
+        window.toggle_theme()
+        after = [self._drawn(action) for action in self._actions(window)]
+        assert all(one != other for one, other in zip(before, after, strict=True))
 
 
 def _answer(monkeypatch, button_text: str) -> None:
