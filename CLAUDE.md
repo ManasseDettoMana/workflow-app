@@ -69,8 +69,10 @@ workflowapp/gui/      depends on core, never the reverse
   strings.py          every Italian string in the application
   theme.py            QSS loading, the per-theme status palettes, QSettings persistence
   assets.py           app_icon - the .ico, read from the package
+  icons.py            the toolbar's four icons, drawn at runtime in the theme's ink
   widgets/
     ticket_table.py   TicketTableModel + the sort proxy
+    table_view.py     TicketTableView + RowHoverDelegate - Qt's cell hover, widened to the row
     status_badge.py   status_icon and StatusDelegate - the coloured tag
     activity_list.py  the checkable activity list with add and remove
   themes/
@@ -163,6 +165,27 @@ These are not style preferences. Breaking them loses a user's tickets or mislead
   `selection-color`: white on white in the light theme, and an invisible selection in the dark one.
   `windowsvista`, `Windows` and `Fusion` are all unaffected, and `Fusion` is what the offscreen
   platform picks, so a test for this has to set the style itself or it measures nothing.
+- **A `QTableView` rule reaches every `QTableView`, including the one inside a `QCalendarWidget`.**
+  The ticket dialog's date popup keeps its day grid in a view named `qt_calendar_calendarview`, so
+  the table rules in both sheets are scoped to `QTableView#ticketTable` and the header to a
+  descendant of it. An `::item` rule escaping is the damaging case: it hands the day cell to
+  `QStyleSheetStyle`, which paints over `QCalendarWidget::paintCell`. Conversely,
+  `background-color`, `color` and the `selection-*` pair on that view *are* what `paintCell` reads,
+  through `QPalette` Base/Text/Highlight/HighlightedText - which is how the calendar is themed with
+  no `::item` rule at all. `tests/test_theme.py` asserts both halves.
+- **Qt's own names for a calendar's internals are the only handles it has**, and there are things
+  none of them reach. `qt_datetimedit_calendar`, `qt_calendar_navigationbar`,
+  `qt_calendar_calendarview`, `qt_calendar_prevmonth`, `qt_calendar_nextmonth`,
+  `qt_calendar_monthbutton` and `qt_calendar_yearedit` are stylable. The weekend's hard-coded
+  `#ff0000`, the locale the month names come from, the week-number column and the `QIcon` baked
+  into the month arrows are not - `TicketDialog._theme_calendar` sets those in Python, guarding
+  every `findChild` with `is not None` so a renamed internal costs an arrow rather than an
+  exception inside a dialog constructor.
+- **`State_Active` is false under the offscreen platform**, because it follows `isActiveWindow()`.
+  Anything that branches on focused-versus-unfocused - the paler `::item:selected:!active`
+  selection and the delegate ink that has to match it - cannot be tested by rendering: the test
+  would measure whichever branch the platform lands on and pass with the branch deleted. Build a
+  `QStyleOptionViewItem`, set the state, and assert on the function.
 - **Status colours live in Python, per theme, not in the QSS.** A `QStyledItemDelegate` paints
   them, and a stylesheet cannot reach into a delegate. They are also genuinely different per
   theme: the amber that reads on white is nearly invisible on dark grey.
@@ -176,6 +199,10 @@ These are not style preferences. Breaking them loses a user's tickets or mislead
   `files("workflowapp.gui")`. This is what makes the frozen build work at all - there is no
   `workflowapp/gui/themes` directory on disk to point at inside an executable. A new resource
   copies that pattern; a `Path(__file__).parent` works locally and fails only once packaged.
+- **`dist/` is gitignored, so it goes stale silently.** A defect reported against the Desktop
+  shortcut may already be fixed in source: the shortcut points into `dist/`, and nothing in the
+  repository records which commit that was built from. Phase 9 opened with a day-old bug report
+  whose whole fix was `.\tools\build.ps1`. Check the timestamps before reading any code.
 - **A onefile build runs as two processes.** The launcher unpacks to `%TEMP%` and re-executes
   itself; the window belongs to the child. Anything looking for the application's window by the
   process it started will not find it, which reads as "the app never started".

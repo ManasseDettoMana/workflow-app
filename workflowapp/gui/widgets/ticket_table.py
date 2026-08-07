@@ -8,6 +8,7 @@ of its own, it reads the snapshot the manager handed it.
 from __future__ import annotations
 
 from enum import IntEnum
+from functools import cache
 
 from PySide6.QtCore import (
     QAbstractTableModel,
@@ -16,6 +17,7 @@ from PySide6.QtCore import (
     QSortFilterProxyModel,
     Qt,
 )
+from PySide6.QtGui import QFont
 
 from workflowapp.core.models import Status, Ticket
 
@@ -37,6 +39,24 @@ TICKET_ID_ROLE = Qt.ItemDataRole.UserRole + 3
 #: argument is evaluated at import time and constructing a QObject there is what
 #: ruff's B008 is warning about.
 _NO_PARENT = QModelIndex()
+
+
+@cache
+def _overdue_font() -> QFont:
+    """A font carrying nothing but the weight.
+
+    ``QStyledItemDelegate`` resolves a FontRole against the view's own font, so
+    only the properties actually set here override it and the stylesheet's
+    family and size survive. Setting a family or a point size instead is how an
+    overdue date ends up in a different typeface from the rest of its row.
+
+    Cached rather than built at import: ``data()`` is called for every visible
+    cell on every repaint, and a ``QFont`` constructed at module level would be
+    constructed before there is a ``QGuiApplication`` to construct it under.
+    """
+    font = QFont()
+    font.setBold(True)
+    return font
 
 
 class Column(IntEnum):
@@ -117,6 +137,8 @@ class TicketTableModel(QAbstractTableModel):
             return None
         if role == Qt.ItemDataRole.ForegroundRole and column is Column.UPDATED:
             return theme.active_palette().muted_color()
+        if role == Qt.ItemDataRole.FontRole and column is Column.DUE_DATE:
+            return _overdue_font() if ticket.is_overdue else None
         if role == Qt.ItemDataRole.ToolTipRole:
             return self._tooltip(ticket, column)
         if role == Qt.ItemDataRole.TextAlignmentRole and column is Column.ACTIVITIES:

@@ -2,14 +2,17 @@
 
 Where the project stands. Updated in the same commit as the work it describes.
 
-**Current state:** Finished and packaged. All eight phases are done, 270 tests pass, and the
+**Current state:** Finished and packaged. All nine phases are done, 337 tests pass, and the
 application has been run end to end against a scratch data file: created a ticket through the
 dialog, closed it, reopened it in a fresh process with everything intact and the theme remembered,
 then corrupted the file by hand and confirmed it reports and preserves rather than overwrites. It
 now also builds into a Windows executable that starts from a Desktop icon.
 
 **Next:** nothing planned. Ideas, none of them committed to, are at the bottom of this file.
-Phase 8 was not planned either - it is what using the application turned up.
+Phases 8 and 9 were not planned either - they are what using the application turned up.
+
+**Before believing a bug in the built application, check when `dist/` was built.** Phase 9 opened
+with a reported defect that had already been fixed in source a day earlier; see below.
 
 ## Phase 1 - Setup
 
@@ -262,6 +265,107 @@ Worth knowing about it:
   on the blue selection. Measured with the delegate in and out, the rendered pixels were identical:
   the `::item:selected` rule already outranks a `ForegroundRole`. It would have been code that
   looked load-bearing and was not.
+
+## Phase 9 - UX and UI polish
+
+Branch `phase/9-ux-polish`. Tag `v1.2.0-phase9`.
+
+Started from a bug report and grew into the interface pass the application had never had.
+
+- [x] The table stylesheet scoped to `QTableView#ticketTable`, so it stops reaching the calendar
+- [x] Checkbox indicators in both themes, and the whole calendar popup themed
+- [x] Whole-row hover, and a readable selection in a window that is not the active one
+- [x] Ctrl+F, Esc and F2, and a right-click menu on the table
+- [x] Toolbar icons, drawn at runtime in the theme's ink
+- [x] A status bar of two labels, remembered column widths and sort, bold on an overdue date
+
+**The reported bug was a stale `dist/`, and nothing in the repository could have said so.** The
+report was "in the light theme I click a ticket and cannot read it" - the Phase 8 bug, again, from
+the Desktop shortcut. The shortcut points into `dist/`, which had been built on 5 August; the fix
+landed on 6 August in `bf5e024`. Diffing the bundled stylesheet against the source one showed a
+single hunk of difference, and it was the block that fixes it:
+
+```
+$ diff workflowapp/gui/themes/light.qss "dist/Workflow App/_internal/workflowapp/gui/themes/light.qss"
+73,83d72
+< QTableView::item:selected {
+<     background-color: #2563eb;
+<     color: #ffffff;
+< }
+```
+
+There was no code change to make. The fix was `.\tools\build.ps1`. `dist/` is gitignored, so
+nothing tracked that it had gone stale, and the running application has no way to say which commit
+it was built from. **The first question about any defect seen in the frozen build is when it was
+built**, and the answer is only in the file timestamps.
+
+**What the rest of it turned up.**
+
+- **A `QCalendarWidget` keeps its day grid in a `QTableView`.** Every unscoped `QTableView` rule
+  in both sheets was already reaching inside the ticket dialog's date popup. The `::item` rule is
+  the damaging one: it hands the day cell to `QStyleSheetStyle`, which paints over
+  `QCalendarWidget::paintCell`. Scoping the table rules to an object name is the fix, and
+  `test_theme.py` now fails if a bare `QTableView` selector comes back. Overriding inside
+  `#qt_calendar_calendarview` was the alternative and was rejected: it re-states every leaked
+  property, regains the leak the moment somebody adds a rule, and leaves an `::item` rule matching
+  the calendar view - the one thing that must not happen.
+- **QSS on that view does reach `paintCell`.** Measured, not assumed: `background-color`, `color`,
+  `selection-background-color` and `selection-color` are folded into the palette's Base, Text,
+  Highlight and HighlightedText, which is exactly what `paintCell` reads. That is why the day grid
+  can be themed with no `::item` rule at all.
+- **Qt hard-codes the weekend to `#ff0000`** through a `QTextCharFormat` no stylesheet can reach,
+  and in the dark theme that red is close enough to the overdue colour that a weekend reads as a
+  deadline. `TicketDialog._theme_calendar` resets it, along with the locale (month names come from
+  the system's, which is Italian on this machine and would not be on another) and the month arrows,
+  which carry a `QIcon` baked from the style and stay dark on a dark navigation bar.
+- **A contrast defect introduced and then caught by measuring.** The weekday-name row was given the
+  muted colour to match the rest of the sheet. Qt paints that row on a slightly shaded band, and
+  `#6b7280` on `#ededed` is 3.9:1 - under AA. Only the weight is set now, and the names inherit the
+  view's text colour.
+- **Qt hovers one cell, not one row.** `QAbstractItemView` gives `State_MouseOver` to the index
+  under the pointer; `QTreeView` widens it to the row and `QTableView` does not. Under SelectRows a
+  single tinted cell reads as a rendering fault, so `gui/widgets/table_view.py` tracks the row and a
+  delegate hands the flag to every column of it. It needs its own module: `ticket_table.py` imports
+  `STATUS_ROLE` from `status_badge.py`, and `status_badge.py` imports the delegate.
+- **A pale unfocused selection is a new version of the reported bug** unless the delegate is told.
+  The stylesheet paints `::item:selected:!active` far paler than a focused selection, and the
+  status column is painted by a delegate no stylesheet rule can reach: its unchanged white text
+  would be 1.2:1 there. `StatusDelegate` reads `State_Active` and picks the palette's quieter ink.
+  **This cannot be tested by rendering** - `State_Active` follows `isActiveWindow()`, which is false
+  under the offscreen platform, so a rendered test measures whichever branch the platform lands on
+  and passes just as happily with the branch deleted.
+- **Persisting column widths needed the resize modes changed first.** Neither `Stretch` nor
+  `ResizeToContents` can be dragged, so there was no width to remember and the key would have
+  stored something nothing could change. The four non-title columns are `Interactive` now, seeded
+  from the contents once - after the first `refresh`, because with an empty model there is nothing
+  to measure. `QHeaderView.saveState` also stores the resize modes, which is the footgun to know
+  about: **changing the modes in code will look like it had no effect on any machine with a saved
+  state.** Rename `table/header` if they ever change again.
+- **A status bar of widgets means `showMessage` can never be used again.** A widget added with
+  `addWidget` is hidden for as long as a temporary message is up, so one stray call blanks the
+  count with nothing on screen to explain it. `test_main_window.py` parses the module and asserts no
+  such call exists, rather than leaving it to a comment.
+- **Icons are painted, not shipped.** Four image files would each need declaring in
+  `[tool.setuptools.package-data]`, in the spec's `datas` and in `test_packaging.py`, or they load
+  from a source checkout and vanish from the frozen build. A loaded `QIcon` also cannot follow the
+  theme - which is not hypothetical, it is exactly why the calendar's month arrows had to be thrown
+  away. `QStyle.StandardPixmap` was rejected: no member means "edit" or "theme", and they follow the
+  system palette rather than this one. `_apply_action_icons` is called from `_retint` as well as
+  from the toolbar builder, which is the Phase 4 trap - the stylesheet reapplying does not repaint
+  a `QIcon`.
+- **Nothing compared the two stylesheets.** They are one design in two colourways, and a widget
+  styled in one theme and forgotten in the other is invisible until somebody switches - which is
+  how the native checkbox indicator and the unthemed calendar both survived this long. There is now
+  a test asserting the two files declare the same selectors, and it was written before the rules it
+  guards.
+
+Rejected along the way: **Ctrl+E for Modifica** (it means "focus the search box" in Explorer,
+Office and every browser, and this phase adds a Ctrl+F that means exactly that); **a tinted row for
+an overdue ticket** (it fights `alternate-background-color`, loses to `::item:selected` anyway, and
+is a third channel for what the badge and the filter already say); **a tick glyph inside the
+checked box** (it needs an `image: url()`, which is a new runtime resource in three places to
+remember); **a context menu that acts on the existing selection** (it would open or delete a ticket
+the user is not pointing at, so the menu selects the row under the cursor first).
 
 ## Possible future work
 

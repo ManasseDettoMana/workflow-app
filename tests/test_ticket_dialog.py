@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-from PySide6.QtCore import QDate, Qt
-from PySide6.QtWidgets import QDialog, QMessageBox
+from PySide6.QtCore import QDate, QLocale, Qt
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import QCalendarWidget, QDialog, QMessageBox, QToolButton
 
 from workflowapp.core.models import Activity, Status, Ticket
 from workflowapp.gui import strings, theme
@@ -35,6 +36,66 @@ def ticket():
 def themed(qapp):
     theme.apply_theme(qapp, theme.Theme.LIGHT)
     return qapp
+
+
+class TestTheCalendarPopup:
+    """The parts of the date popup a stylesheet cannot reach.
+
+    Everything else about it is in the themes' Calendar section and covered by
+    tests/test_theme.py.
+    """
+
+    @pytest.fixture
+    def calendar(self, qtbot, themed):
+        del themed
+        dialog = TicketDialog(None)
+        qtbot.addWidget(dialog)
+        # Yield rather than return: the calendar belongs to the dialog, and a
+        # returned one outlives the local that owns it by exactly nothing.
+        yield dialog.due_date_edit.calendarWidget()
+
+    def test_the_weekend_is_not_qts_hard_coded_red(self, calendar):
+        # QCalendarWidget gives Saturday and Sunday a solid red foreground in its
+        # constructor. Naming the value here because it is otherwise a mystery:
+        # that red is in neither palette, and in the dark theme it sits close
+        # enough to the overdue colour that a weekend reads as a deadline.
+        muted = theme.active_palette().muted_color()
+        for day in (Qt.DayOfWeek.Saturday, Qt.DayOfWeek.Sunday):
+            colour = calendar.weekdayTextFormat(day).foreground().color()
+            assert colour != QColor("#ff0000")
+            assert colour == muted
+
+    def test_the_weekday_names_keep_the_views_own_ink(self, calendar):
+        # Qt paints the weekday row on a shaded band. Spending the muted colour
+        # on the names as well drops them to 3.9:1 there, so the format carries
+        # the weight and nothing else.
+        header = calendar.headerTextFormat()
+        assert header.foreground().style() == Qt.BrushStyle.NoBrush
+        assert header.fontWeight() == QFont.Weight.DemiBold
+
+    def test_the_calendar_speaks_italian_whatever_the_system_locale_is(self, calendar):
+        # Left alone the month names come from Windows, which is Italian on the
+        # machine this was written on and would not be on another.
+        assert calendar.locale().language() == QLocale.Language.Italian
+
+    def test_the_week_number_column_is_hidden(self, calendar):
+        assert (
+            calendar.verticalHeaderFormat()
+            is QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader
+        )
+
+    def test_the_month_arrows_are_not_a_baked_icon(self, calendar):
+        # A stylesheet cannot recolour a QIcon, so the icon Qt bakes from the
+        # style stays dark on the dark theme's navigation bar. Cleared, the
+        # button draws an arrow primitive that does follow the palette.
+        for name, arrow in (
+            ("qt_calendar_prevmonth", Qt.ArrowType.LeftArrow),
+            ("qt_calendar_nextmonth", Qt.ArrowType.RightArrow),
+        ):
+            button = calendar.findChild(QToolButton, name)
+            assert button is not None
+            assert button.icon().isNull()
+            assert button.arrowType() is arrow
 
 
 class TestNewMode:

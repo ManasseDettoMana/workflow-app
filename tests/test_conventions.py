@@ -88,11 +88,11 @@ class TestNoEmoji:
 ALLOWED_GUI_LITERALS = {
     # Separators and format templates.
     "\n",
-    " - ",
     "/",
     "{} - {}",
     # Theme palette colours.
     "#15803d",
+    "#1f2933",
     "#2563eb",
     "#4ade80",
     "#60a5fa",
@@ -100,6 +100,7 @@ ALLOWED_GUI_LITERALS = {
     "#9aa3b2",
     "#b45309",
     "#b91c1c",
+    "#e4e7eb",
     "#f87171",
     "#fbbf24",
     "#ffffff",
@@ -107,7 +108,18 @@ ALLOWED_GUI_LITERALS = {
     "activityButton",
     "emptyLabel",
     "metaLabel",
+    "overdueLabel",
     "sectionLabel",
+    "statusLabel",
+    # Scopes the stylesheet's table rules to the ticket table, so they stop
+    # reaching the QTableView inside the ticket dialog's calendar popup.
+    "ticketTable",
+    # Qt's own names for the internals of a QCalendarWidget. Not ours and not
+    # translatable: they are the handles Qt's stylesheet documentation uses, and
+    # ticket_dialog.py reaches these two to clear an icon a stylesheet cannot
+    # recolour.
+    "qt_calendar_nextmonth",
+    "qt_calendar_prevmonth",
     # Theme tokens and resource loading.
     "dark",
     "light",
@@ -117,6 +129,7 @@ ALLOWED_GUI_LITERALS = {
     "workflowapp.gui",
     "assets/app.ico",
     # QSettings keys.
+    "table/header",
     "theme",
     "window/geometry",
     "window/state",

@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 
 from workflowapp.core.models import Activity, Status, Ticket
 from workflowapp.gui import strings, theme
@@ -43,6 +44,24 @@ def proxy(model):
     proxy = TicketSortProxy()
     proxy.setSourceModel(model)
     return proxy
+
+
+def _resolve_bit_for_family() -> int:
+    """Which bit of QFont.resolveMask() means "this font sets a family".
+
+    Derived rather than named: PySide6 6.11 does not expose
+    ``QFont::ResolveProperties``, and hard-coding 1 is a magic number that would
+    go quietly wrong if Qt ever renumbered them.
+    """
+    font = QFont()
+    font.setFamily("Arial")
+    return font.resolveMask()
+
+
+def _resolve_bit_for_size() -> int:
+    font = QFont()
+    font.setPointSize(20)
+    return font.resolveMask()
 
 
 def titles(proxy) -> list[str]:
@@ -107,6 +126,28 @@ class TestModel:
         model.set_tickets([overdue])
         colour = model.index(0, int(Column.DUE_DATE)).data(Qt.ItemDataRole.ForegroundRole)
         assert colour == theme.active_palette().overdue_color()
+
+    def test_an_overdue_date_is_shown_in_bold(self, qapp):
+        del qapp
+        overdue = Ticket.create("In ritardo", due_date=date.today() - timedelta(days=2))
+        model = TicketTableModel()
+        model.set_tickets([overdue])
+        font = model.index(0, int(Column.DUE_DATE)).data(Qt.ItemDataRole.FontRole)
+        assert font.bold()
+        # Nothing but the weight is *set*. A FontRole is resolved against the
+        # view's own font and only the properties this one declares override it,
+        # which is what lets the stylesheet's family and size survive. The
+        # resolve mask is where that shows - family() and pointSize() report the
+        # inherited values whether they were set here or not, so asking them
+        # measures nothing.
+        assert not font.resolveMask() & (_resolve_bit_for_family() | _resolve_bit_for_size())
+
+    def test_a_date_still_in_the_future_is_not_bold(self, qapp):
+        del qapp
+        ticket = Ticket.create("Fra un mese", due_date=date.today() + timedelta(days=30))
+        model = TicketTableModel()
+        model.set_tickets([ticket])
+        assert model.index(0, int(Column.DUE_DATE)).data(Qt.ItemDataRole.FontRole) is None
 
     def test_a_done_ticket_is_not_painted_overdue(self, qapp):
         del qapp

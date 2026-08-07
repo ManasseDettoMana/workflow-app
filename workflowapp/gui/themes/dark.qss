@@ -54,8 +54,10 @@ QToolBar::separator {
 }
 
 /* Table --------------------------------------------------------------- */
+/* See the same section in light.qss for why every rule here is scoped to
+ * #ticketTable: the calendar popup's day grid is a QTableView as well. */
 
-QTableView {
+QTableView#ticketTable {
     background-color: #262b34;
     alternate-background-color: #2b313b;
     border: 1px solid #333a45;
@@ -66,9 +68,14 @@ QTableView {
     outline: none;
 }
 
-QTableView::item {
+QTableView#ticketTable::item {
     padding: 6px 8px;
     border: none;
+}
+
+/* Before the selection rules - see light.qss for why the order matters. */
+QTableView#ticketTable::item:hover {
+    background-color: #343c49;
 }
 
 /* See the same rule in light.qss. Declaring QTableView::item hands item drawing
@@ -77,12 +84,20 @@ QTableView::item {
  * "windows11" style a selected row is painted exactly like an unselected one -
  * less destructive here than the white-on-white it causes in the light theme,
  * but still a selection that cannot be seen. */
-QTableView::item:selected {
+QTableView#ticketTable::item:selected {
     background-color: #2f6fd0;
     color: #ffffff;
 }
 
-QHeaderView::section {
+/* White would in fact survive on this one, at 9.1:1. It gets the palette's
+ * quieter ink anyway: a delegate branch that is correct in one theme by luck is
+ * a branch that breaks the first time somebody retunes the other. */
+QTableView#ticketTable::item:selected:!active {
+    background-color: #35496a;
+    color: #e4e7eb;
+}
+
+QTableView#ticketTable QHeaderView::section {
     background-color: #262b34;
     color: #9aa3b2;
     border: none;
@@ -91,7 +106,7 @@ QHeaderView::section {
     font-weight: 600;
 }
 
-QHeaderView::section:hover {
+QTableView#ticketTable QHeaderView::section:hover {
     color: #e4e7eb;
 }
 
@@ -130,6 +145,73 @@ QComboBox QAbstractItemView {
     padding: 4px;
 }
 
+/* Calendar popup ------------------------------------------------------- */
+/* See the same section in light.qss. This theme is the reason it exists: the
+ * unthemed popup was a white native calendar dropping out of a dark dialog. */
+
+#qt_datetimedit_calendar {
+    background-color: #262b34;
+    border: 1px solid #3f4756;
+    border-radius: 6px;
+}
+
+QCalendarWidget {
+    background-color: #262b34;
+}
+
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background-color: #2b313b;
+    border-bottom: 1px solid #333a45;
+    min-height: 34px;
+}
+
+QCalendarWidget QToolButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 4px 10px;
+    color: #e4e7eb;
+    font-weight: 600;
+}
+
+QCalendarWidget QToolButton:hover {
+    background-color: #323945;
+    border-color: #3f4756;
+}
+
+QCalendarWidget QToolButton:pressed {
+    background-color: #3a4250;
+}
+
+QCalendarWidget QToolButton#qt_calendar_prevmonth,
+QCalendarWidget QToolButton#qt_calendar_nextmonth {
+    padding: 4px;
+    min-width: 26px;
+}
+
+QCalendarWidget QSpinBox#qt_calendar_yearedit {
+    background-color: #1a1e25;
+    border: 1px solid #3f4756;
+    border-radius: 4px;
+    padding: 2px 6px;
+    color: #e4e7eb;
+}
+
+/* No ::item rule here either - see light.qss. These four properties are what
+ * QStyleSheetStyle folds into the palette QCalendarWidget::paintCell reads. */
+QCalendarWidget QAbstractItemView#qt_calendar_calendarview {
+    background-color: #262b34;
+    color: #e4e7eb;
+    selection-background-color: #2f6fd0;
+    selection-color: #ffffff;
+    border: none;
+    outline: none;
+}
+
+QCalendarWidget QAbstractItemView#qt_calendar_calendarview:disabled {
+    color: #7b8794;
+}
+
 /* Lists --------------------------------------------------------------- */
 
 QListWidget {
@@ -148,6 +230,37 @@ QListWidget::item {
 QListWidget::item:selected {
     background-color: #2f3f5c;
     color: #e4e7eb;
+}
+
+/* Menus ---------------------------------------------------------------- */
+/* See the same section in light.qss. Unstyled, this dropped a white native
+ * menu out of a dark window. */
+
+QMenu {
+    background-color: #262b34;
+    border: 1px solid #3f4756;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 6px 24px 6px 12px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: #2f6fd0;
+    color: #ffffff;
+}
+
+QMenu::item:disabled {
+    color: #6b7280;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #333a45;
+    margin: 4px 8px;
 }
 
 /* Buttons ------------------------------------------------------------- */
@@ -222,8 +335,49 @@ QStatusBar::item {
     border: none;
 }
 
+/* See the same two rules in light.qss for why the transparent background is
+ * load-bearing. The overdue red is the palette's, not the light theme's: that
+ * one is 2.4:1 on this bar. */
+QLabel#statusLabel {
+    background-color: transparent;
+    color: #9aa3b2;
+    padding: 0 4px;
+}
+
+QLabel#overdueLabel {
+    background-color: transparent;
+    color: #f87171;
+    font-weight: 600;
+    padding: 0 4px;
+}
+
 QCheckBox {
     spacing: 8px;
+}
+
+/* See the same block in light.qss for why there is no tick glyph. The dark
+ * theme is the reason this section exists at all: the native indicator is drawn
+ * from the system palette and stays a light box on a dark dialog. */
+QCheckBox::indicator, QListWidget::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #3f4756;
+    border-radius: 3px;
+    background-color: #1a1e25;
+}
+
+QCheckBox::indicator:hover, QListWidget::indicator:hover {
+    border-color: #60a5fa;
+}
+
+QCheckBox::indicator:checked, QListWidget::indicator:checked {
+    background-color: #2f6fd0;
+    border-color: #2f6fd0;
+}
+
+QCheckBox::indicator:disabled, QListWidget::indicator:disabled {
+    background-color: #22272f;
+    border-color: #333a45;
 }
 
 QScrollBar:vertical {

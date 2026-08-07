@@ -7,7 +7,7 @@ it to the table model, and asks again after anything changes.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, Qt
+from PySide6.QtCore import QModelIndex, QPoint, QSize, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -20,9 +20,9 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QStatusBar,
-    QTableView,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -32,9 +32,10 @@ from workflowapp.core.errors import WorkflowAppError
 from workflowapp.core.manager import TicketManager
 from workflowapp.core.models import Status, Ticket
 
-from . import strings, theme
+from . import icons, strings, theme
 from .ticket_dialog import TicketDialog
 from .widgets.status_badge import StatusDelegate, status_icon
+from .widgets.table_view import RowHoverDelegate, TicketTableView
 from .widgets.ticket_table import (
     TICKET_ID_ROLE,
     Column,
@@ -44,6 +45,9 @@ from .widgets.ticket_table import (
 
 WINDOW_GEOMETRY_KEY = "window/geometry"
 WINDOW_STATE_KEY = "window/state"
+#: One key for the whole header: QHeaderView.saveState already encodes the
+#: column widths, the sort indicator's section and its order.
+TABLE_HEADER_KEY = "table/header"
 
 
 class MainWindow(QMainWindow):
@@ -60,17 +64,20 @@ class MainWindow(QMainWindow):
 
         self._build_toolbar()
         self._build_body()
-        self.setStatusBar(QStatusBar(self))
+        self._build_shortcuts()
+        self._build_status_bar()
 
         self._restore_geometry()
         self.refresh()
+        self._restore_table_header()
 
     # ------------------------------------------------------------ building
 
     def _build_toolbar(self) -> None:
         toolbar = QToolBar(self)
         toolbar.setMovable(False)
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toolbar.setIconSize(QSize(icons.ICON_SIZE, icons.ICON_SIZE))
         self.addToolBar(toolbar)
 
         self.action_new = QAction(strings.ACTION_NEW, self)
@@ -81,6 +88,12 @@ class MainWindow(QMainWindow):
 
         self.action_edit = QAction(strings.ACTION_EDIT, self)
         self.action_edit.setToolTip(strings.ACTION_EDIT_TIP)
+        # F2 is what Windows uses for "act on the selected row", and Enter
+        # already opens the ticket, so the two land in the same mental slot. Not
+        # Ctrl+E: that means "focus the search box" in Explorer, Office and every
+        # browser, and this window is about to grow a Ctrl+F that means exactly
+        # that. The table has NoEditTriggers, so F2 collides with nothing.
+        self.action_edit.setShortcut(QKeySequence(Qt.Key.Key_F2))
         self.action_edit.triggered.connect(self.edit_selected)
         toolbar.addAction(self.action_edit)
 
@@ -97,6 +110,21 @@ class MainWindow(QMainWindow):
         self.action_theme.triggered.connect(self.toggle_theme)
         toolbar.addAction(self.action_theme)
 
+        self._apply_action_icons()
+
+    def _apply_action_icons(self) -> None:
+        """Draw the toolbar icons in the ink of whichever theme is active.
+
+        Called on a theme change as well as at construction. Like the status
+        dots these come from the Python palette, not from the stylesheet, so
+        reapplying the sheet does not touch them - left out of ``_retint`` a
+        toggle to the dark theme keeps four dark icons on a dark toolbar.
+        """
+        self.action_new.setIcon(icons.new_icon())
+        self.action_edit.setIcon(icons.edit_icon())
+        self.action_delete.setIcon(icons.delete_icon())
+        self.action_theme.setIcon(icons.theme_icon())
+
     def _build_body(self) -> None:
         central = QWidget(self)
         layout = QVBoxLayout(central)
@@ -105,8 +133,16 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(self._build_filter_row())
 
-        self._table = QTableView(central)
+        self._table = TicketTableView(central)
+        # The stylesheet's table rules are scoped to this name. A QCalendarWidget
+        # keeps its day grid in a QTableView too, so an unscoped rule would reach
+        # inside the dialog's date popup and repaint it.
+        self._table.setObjectName("ticketTable")
         self._table.setModel(self._proxy)
+        # Both delegates widen Qt's one-cell hover to the row. The default one
+        # covers every plain column; the status column needs its own painter and
+        # inherits the same behaviour.
+        self._table.setItemDelegate(RowHoverDelegate(self._table))
         self._table.setItemDelegateForColumn(int(Column.STATUS), StatusDelegate(self._table))
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -121,14 +157,21 @@ class MainWindow(QMainWindow):
         # open two dialogs on the styles where both fire.
         self._table.activated.connect(self._on_activated)
         self._table.selectionModel().selectionChanged.connect(self._update_actions)
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_context_menu)
 
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(int(Column.TITLE), QHeaderView.ResizeMode.Stretch)
         for column in (Column.STATUS, Column.DUE_DATE, Column.ACTIVITIES, Column.UPDATED):
-            header.setSectionResizeMode(int(column), QHeaderView.ResizeMode.ResizeToContents)
+            # Interactive, not ResizeToContents: neither Stretch nor
+            # ResizeToContents can be dragged, so under those there is no width
+            # for _restore_geometry to remember. Seeded from the contents once
+            # below, when there is nothing saved.
+            header.setSectionResizeMode(int(column), QHeaderView.ResizeMode.Interactive)
         header.setHighlightSections(False)
 
         # Most recently updated first, which is what "what was I doing?" means.
+        # A saved header state overrides this in _restore_geometry.
         self._table.sortByColumn(int(Column.UPDATED), Qt.SortOrder.DescendingOrder)
 
         layout.addWidget(self._table)
@@ -150,6 +193,7 @@ class MainWindow(QMainWindow):
 
         self._search = QLineEdit(self)
         self._search.setPlaceholderText(strings.FILTER_PLACEHOLDER)
+        self._search.setToolTip(f"{strings.TOOLTIP_SEARCH}\n{strings.TOOLTIP_CLEAR_FILTERS}")
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self._on_filter_changed)
         row.addWidget(self._search, 1)
@@ -168,6 +212,47 @@ class MainWindow(QMainWindow):
         row.addWidget(self._overdue_check)
 
         return row
+
+    def _build_status_bar(self) -> None:
+        """Two labels rather than one temporary message.
+
+        Nothing in this window may ever call ``statusBar().showMessage()``
+        again. A widget added with ``addWidget`` is hidden for as long as a
+        temporary message is up, so a single stray call blanks the count until
+        something else redraws it.
+
+        The badge sits on the right, through ``addPermanentWidget``, and is
+        hidden outright when nothing is late - a "0 in ritardo" is a number to
+        read and dismiss on every glance.
+        """
+        bar = QStatusBar(self)
+
+        self._status_label = QLabel(bar)
+        self._status_label.setObjectName("statusLabel")
+        bar.addWidget(self._status_label)
+
+        self._overdue_label = QLabel(bar)
+        self._overdue_label.setObjectName("overdueLabel")
+        bar.addPermanentWidget(self._overdue_label)
+
+        self.setStatusBar(bar)
+
+    def _build_shortcuts(self) -> None:
+        """The two keys that belong to no button.
+
+        Added to the window rather than to the search box so that they work
+        wherever the focus happens to be. The default WindowShortcut context is
+        also what makes them correctly do nothing while a modal dialog is open.
+        """
+        find = QAction(self)
+        find.setShortcut(QKeySequence.StandardKey.Find)
+        find.triggered.connect(self.focus_search)
+        self.addAction(find)
+
+        clear = QAction(self)
+        clear.setShortcut(QKeySequence.StandardKey.Cancel)
+        clear.triggered.connect(self.clear_filters)
+        self.addAction(clear)
 
     # ------------------------------------------------------------- reading
 
@@ -278,6 +363,40 @@ class MainWindow(QMainWindow):
             self._manager.delete_ticket(ticket.id)
             self.refresh()
 
+    def focus_search(self) -> None:
+        """Put the cursor in the search box with what is there already selected.
+
+        Selecting is the point: Ctrl+F on a box that already holds a search is a
+        new search, so the next keystroke should replace it rather than append
+        to it. It is also what makes this testable - ``hasFocus()`` is
+        unobservable under the offscreen platform, ``selectedText()`` is not.
+        """
+        self._search.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self._search.selectAll()
+
+    def clear_filters(self) -> None:
+        """Reset all three filters at once.
+
+        The widgets are silenced while they are cleared and the proxy is told
+        once at the end: left to their own signals, one keystroke would re-run
+        the filter three times and redraw the table three times with it.
+
+        Unconditional on purpose. One key, one meaning, wherever the focus is;
+        an Esc that only works in the search box is an Esc that "sometimes does
+        not work".
+        """
+        widgets = (self._search, self._status_filter, self._overdue_check)
+        for widget in widgets:
+            widget.blockSignals(True)
+        try:
+            self._search.clear()
+            self._status_filter.setCurrentIndex(0)
+            self._overdue_check.setChecked(False)
+        finally:
+            for widget in widgets:
+                widget.blockSignals(False)
+        self._on_filter_changed()
+
     def toggle_theme(self) -> None:
         new_theme = theme.active().other()
         theme.apply_theme(QApplication.instance(), new_theme)
@@ -287,9 +406,11 @@ class MainWindow(QMainWindow):
     def _retint(self) -> None:
         """Repaint everything whose colour came from the theme's Python palette.
 
-        The stylesheet reapplies itself; the status dots and the overdue dates do
-        not, because a delegate and a ForegroundRole are not stylesheet-driven.
+        The stylesheet reapplies itself; the status dots, the toolbar icons and
+        the overdue dates do not, because a delegate, a QIcon and a
+        ForegroundRole are none of them stylesheet-driven.
         """
+        self._apply_action_icons()
         for index in range(self._status_filter.count()):
             status = self._status_filter.itemData(index)
             if status is not None:
@@ -304,6 +425,37 @@ class MainWindow(QMainWindow):
     def _on_activated(self, index: QModelIndex) -> None:
         del index
         self.edit_selected()
+
+    def _context_menu_at(self, pos: QPoint) -> QMenu | None:
+        """The right-click menu for the row at ``pos``, or None over empty space.
+
+        Selects that row first. Every action here reads the selection, so
+        without it a right-click would open or delete whatever was selected
+        before - a ticket the user is not pointing at. ``selectRow`` takes a
+        view row and the actions read the ticket id back off the proxy index,
+        so the sort proxy needs no ``mapToSource`` anywhere in this path. It
+        also fires ``selectionChanged`` synchronously, so ``_update_actions``
+        has already run by the time the menu is shown.
+
+        Separate from the slot below so the menu can be built and inspected
+        without a test having to monkeypatch ``QMenu.exec``.
+        """
+        index = self._table.indexAt(pos)
+        if not index.isValid():
+            # A menu holding nothing but greyed-out entries is not a menu.
+            return None
+        self._table.selectRow(index.row())
+
+        menu = QMenu(self._table)
+        menu.addAction(self.action_edit)
+        menu.addAction(self.action_delete)
+        return menu
+
+    def _on_context_menu(self, pos: QPoint) -> None:
+        menu = self._context_menu_at(pos)
+        if menu is None:
+            return
+        menu.exec(self._table.viewport().mapToGlobal(pos))
 
     def _on_filter_changed(self) -> None:
         self._proxy.set_text_filter(self._search.text())
@@ -320,12 +472,13 @@ class MainWindow(QMainWindow):
     def _update_status_bar(self) -> None:
         total = len(self._manager.tickets())
         visible = self._proxy.rowCount()
-        message = strings.STATUS_BAR_COUNT.format(visibili=visible, totali=total)
+        self._status_label.setText(
+            strings.STATUS_BAR_COUNT.format(visibili=visible, totali=total)
+        )
 
         overdue = sum(1 for t in self._manager.tickets() if t.is_overdue)
-        if overdue:
-            message = f"{message} - {strings.STATUS_BAR_OVERDUE.format(scaduti=overdue)}"
-        self.statusBar().showMessage(message)
+        self._overdue_label.setText(strings.STATUS_BAR_OVERDUE.format(scaduti=overdue))
+        self._overdue_label.setVisible(bool(overdue))
 
         empty = visible == 0
         self._empty_label.setVisible(empty)
@@ -346,10 +499,32 @@ class MainWindow(QMainWindow):
         if state:
             self.restoreState(state)
 
+    def _restore_table_header(self) -> None:
+        """The column widths and the sort indicator, from the last session.
+
+        Called after the first ``refresh``, not with the window geometry: with
+        no rows in the model there is nothing for the first-run fallback below
+        to measure, and every column would come out the width of its heading.
+        """
+        state = theme.settings().value(TABLE_HEADER_KEY)
+        if state:
+            # saveState carries the sort indicator's section and order as well
+            # as the column widths, so this is also what makes the sort stick.
+            # It carries the resize modes too, which is the trap: changing them
+            # in _build_body will look like it had no effect on any machine with
+            # a saved state, and nothing in the running application says why.
+            # Rename this key if the modes ever change again.
+            self._table.horizontalHeader().restoreState(state)
+        else:
+            # First run. An Interactive column starts at the header's default
+            # width, which is far too wide for a status or a date.
+            self._table.resizeColumnsToContents()
+
     def closeEvent(self, event) -> None:
         settings = theme.settings()
         settings.setValue(WINDOW_GEOMETRY_KEY, self.saveGeometry())
         settings.setValue(WINDOW_STATE_KEY, self.saveState())
+        settings.setValue(TABLE_HEADER_KEY, self._table.horizontalHeader().saveState())
         super().closeEvent(event)
 
 
