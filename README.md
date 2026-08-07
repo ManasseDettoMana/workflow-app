@@ -64,10 +64,22 @@ nella propria cartella, e usa gli stessi dati della versione avviata da Python.
 - Creazione, modifica ed eliminazione dei ticket
 - Stati con colore: Aperto, In Lavorazione, Fatto, Urgente
 - Lista di attivita per ogni ticket, con spunta di completamento
-- Scadenza facoltativa, con evidenziazione dei ticket scaduti
+- Scadenza facoltativa; i ticket scaduti sono in rosso e in grassetto, e contati nella barra di stato
 - Filtri per testo, per stato e per soli ticket in scadenza
+- Menu con il tasto destro sulla riga: apre o elimina il ticket su cui si e cliccato
+- Larghezza delle colonne e ordinamento ricordati tra un avvio e l'altro
 - Tema chiaro e scuro, con la preferenza ricordata tra un avvio e l'altro
 - Salvataggio automatico a ogni modifica
+
+### Scorciatoie da tastiera
+
+| Tasti | Cosa fanno |
+| --- | --- |
+| `Ctrl+N` | Nuovo ticket |
+| `Invio` o `F2` | Apre il ticket selezionato |
+| `Canc` | Elimina il ticket selezionato |
+| `Ctrl+F` | Va nella casella di ricerca |
+| `Esc` | Azzera tutti i filtri |
 
 ## Sviluppo
 
