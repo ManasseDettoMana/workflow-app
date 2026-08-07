@@ -256,6 +256,37 @@ QListWidget::item:selected {
     color: #1f2933;
 }
 
+/* Menus ---------------------------------------------------------------- */
+/* The table's right-click menu. The calendar's month button drops a plain
+ * QMenu of its own, so this one section serves both. */
+
+QMenu {
+    background-color: #ffffff;
+    border: 1px solid #cbd2d9;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 6px 24px 6px 12px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+
+QMenu::item:disabled {
+    color: #a4adb8;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #dfe3e8;
+    margin: 4px 8px;
+}
+
 /* Buttons ------------------------------------------------------------- */
 
 QPushButton {

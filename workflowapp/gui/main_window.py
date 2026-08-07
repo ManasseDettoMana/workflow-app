@@ -7,7 +7,7 @@ it to the table model, and asks again after anything changes.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, Qt
+from PySide6.QtCore import QModelIndex, QPoint, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QStatusBar,
     QToolBar,
@@ -60,6 +61,7 @@ class MainWindow(QMainWindow):
 
         self._build_toolbar()
         self._build_body()
+        self._build_shortcuts()
         self.setStatusBar(QStatusBar(self))
 
         self._restore_geometry()
@@ -81,6 +83,12 @@ class MainWindow(QMainWindow):
 
         self.action_edit = QAction(strings.ACTION_EDIT, self)
         self.action_edit.setToolTip(strings.ACTION_EDIT_TIP)
+        # F2 is what Windows uses for "act on the selected row", and Enter
+        # already opens the ticket, so the two land in the same mental slot. Not
+        # Ctrl+E: that means "focus the search box" in Explorer, Office and every
+        # browser, and this window is about to grow a Ctrl+F that means exactly
+        # that. The table has NoEditTriggers, so F2 collides with nothing.
+        self.action_edit.setShortcut(QKeySequence(Qt.Key.Key_F2))
         self.action_edit.triggered.connect(self.edit_selected)
         toolbar.addAction(self.action_edit)
 
@@ -129,6 +137,8 @@ class MainWindow(QMainWindow):
         # open two dialogs on the styles where both fire.
         self._table.activated.connect(self._on_activated)
         self._table.selectionModel().selectionChanged.connect(self._update_actions)
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._on_context_menu)
 
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(int(Column.TITLE), QHeaderView.ResizeMode.Stretch)
@@ -158,6 +168,7 @@ class MainWindow(QMainWindow):
 
         self._search = QLineEdit(self)
         self._search.setPlaceholderText(strings.FILTER_PLACEHOLDER)
+        self._search.setToolTip(f"{strings.TOOLTIP_SEARCH}\n{strings.TOOLTIP_CLEAR_FILTERS}")
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self._on_filter_changed)
         row.addWidget(self._search, 1)
@@ -176,6 +187,23 @@ class MainWindow(QMainWindow):
         row.addWidget(self._overdue_check)
 
         return row
+
+    def _build_shortcuts(self) -> None:
+        """The two keys that belong to no button.
+
+        Added to the window rather than to the search box so that they work
+        wherever the focus happens to be. The default WindowShortcut context is
+        also what makes them correctly do nothing while a modal dialog is open.
+        """
+        find = QAction(self)
+        find.setShortcut(QKeySequence.StandardKey.Find)
+        find.triggered.connect(self.focus_search)
+        self.addAction(find)
+
+        clear = QAction(self)
+        clear.setShortcut(QKeySequence.StandardKey.Cancel)
+        clear.triggered.connect(self.clear_filters)
+        self.addAction(clear)
 
     # ------------------------------------------------------------- reading
 
@@ -286,6 +314,40 @@ class MainWindow(QMainWindow):
             self._manager.delete_ticket(ticket.id)
             self.refresh()
 
+    def focus_search(self) -> None:
+        """Put the cursor in the search box with what is there already selected.
+
+        Selecting is the point: Ctrl+F on a box that already holds a search is a
+        new search, so the next keystroke should replace it rather than append
+        to it. It is also what makes this testable - ``hasFocus()`` is
+        unobservable under the offscreen platform, ``selectedText()`` is not.
+        """
+        self._search.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self._search.selectAll()
+
+    def clear_filters(self) -> None:
+        """Reset all three filters at once.
+
+        The widgets are silenced while they are cleared and the proxy is told
+        once at the end: left to their own signals, one keystroke would re-run
+        the filter three times and redraw the table three times with it.
+
+        Unconditional on purpose. One key, one meaning, wherever the focus is;
+        an Esc that only works in the search box is an Esc that "sometimes does
+        not work".
+        """
+        widgets = (self._search, self._status_filter, self._overdue_check)
+        for widget in widgets:
+            widget.blockSignals(True)
+        try:
+            self._search.clear()
+            self._status_filter.setCurrentIndex(0)
+            self._overdue_check.setChecked(False)
+        finally:
+            for widget in widgets:
+                widget.blockSignals(False)
+        self._on_filter_changed()
+
     def toggle_theme(self) -> None:
         new_theme = theme.active().other()
         theme.apply_theme(QApplication.instance(), new_theme)
@@ -312,6 +374,37 @@ class MainWindow(QMainWindow):
     def _on_activated(self, index: QModelIndex) -> None:
         del index
         self.edit_selected()
+
+    def _context_menu_at(self, pos: QPoint) -> QMenu | None:
+        """The right-click menu for the row at ``pos``, or None over empty space.
+
+        Selects that row first. Every action here reads the selection, so
+        without it a right-click would open or delete whatever was selected
+        before - a ticket the user is not pointing at. ``selectRow`` takes a
+        view row and the actions read the ticket id back off the proxy index,
+        so the sort proxy needs no ``mapToSource`` anywhere in this path. It
+        also fires ``selectionChanged`` synchronously, so ``_update_actions``
+        has already run by the time the menu is shown.
+
+        Separate from the slot below so the menu can be built and inspected
+        without a test having to monkeypatch ``QMenu.exec``.
+        """
+        index = self._table.indexAt(pos)
+        if not index.isValid():
+            # A menu holding nothing but greyed-out entries is not a menu.
+            return None
+        self._table.selectRow(index.row())
+
+        menu = QMenu(self._table)
+        menu.addAction(self.action_edit)
+        menu.addAction(self.action_delete)
+        return menu
+
+    def _on_context_menu(self, pos: QPoint) -> None:
+        menu = self._context_menu_at(pos)
+        if menu is None:
+            return
+        menu.exec(self._table.viewport().mapToGlobal(pos))
 
     def _on_filter_changed(self) -> None:
         self._proxy.set_text_filter(self._search.text())

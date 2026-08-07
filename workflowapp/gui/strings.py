@@ -38,7 +38,7 @@ WINDOW_TITLE = APP_NAME
 ACTION_NEW = "Nuovo Ticket"
 ACTION_NEW_TIP = "Crea un nuovo ticket (Ctrl+N)"
 ACTION_EDIT = "Modifica"
-ACTION_EDIT_TIP = "Apri il ticket selezionato (Invio)"
+ACTION_EDIT_TIP = "Apri il ticket selezionato (Invio o F2)"
 ACTION_DELETE = "Elimina"
 ACTION_DELETE_TIP = "Elimina il ticket selezionato (Canc)"
 ACTION_THEME = "Tema"
@@ -48,6 +48,11 @@ FILTER_LABEL = "Filtra:"
 FILTER_PLACEHOLDER = "Cerca per titolo o descrizione"
 FILTER_ALL_STATUSES = "Tutti gli stati"
 FILTER_OVERDUE_ONLY = "Solo in scadenza"
+
+#: Both go on the search box, joined by a newline. Esc has no widget of its own,
+#: and the search box is where somebody hunting for the filters already is.
+TOOLTIP_SEARCH = "Cerca per titolo o descrizione (Ctrl+F)"
+TOOLTIP_CLEAR_FILTERS = "Esc azzera tutti i filtri"
 
 COLUMN_TITLE = "Titolo"
 COLUMN_STATUS = "Stato"

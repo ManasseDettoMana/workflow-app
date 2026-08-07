@@ -107,6 +107,15 @@ class TestStylesheets:
         assert "QListWidget::indicator" in qss
         assert "QCheckBox::indicator:checked" in qss
 
+    @pytest.mark.parametrize("which", list(theme.Theme))
+    def test_each_theme_styles_a_menu(self, which):
+        # Nothing in this application opened a menu until the table grew a
+        # right-click one, so an unstyled QMenu was a white native popup coming
+        # out of a dark window - the same defect as the calendar's.
+        qss = theme.stylesheet(which)
+        assert "QMenu {" in qss
+        assert "QMenu::item:selected" in qss
+
     def test_neither_stylesheet_styles_the_status_column(self):
         # The delegate owns that column. A rule here would be a second opinion
         # about it, and the two would drift.

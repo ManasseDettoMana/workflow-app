@@ -232,6 +232,37 @@ QListWidget::item:selected {
     color: #e4e7eb;
 }
 
+/* Menus ---------------------------------------------------------------- */
+/* See the same section in light.qss. Unstyled, this dropped a white native
+ * menu out of a dark window. */
+
+QMenu {
+    background-color: #262b34;
+    border: 1px solid #3f4756;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QMenu::item {
+    padding: 6px 24px 6px 12px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: #2f6fd0;
+    color: #ffffff;
+}
+
+QMenu::item:disabled {
+    color: #6b7280;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #333a45;
+    margin: 4px 8px;
+}
+
 /* Buttons ------------------------------------------------------------- */
 
 QPushButton {

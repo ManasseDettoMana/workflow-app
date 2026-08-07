@@ -7,10 +7,11 @@ from collections import Counter
 from datetime import date, timedelta
 
 import pytest
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QPoint, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QMessageBox,
     QStyle,
     QStyleFactory,
@@ -21,9 +22,10 @@ from workflowapp.core.manager import TicketManager
 from workflowapp.core.models import Status
 from workflowapp.gui import strings, theme
 from workflowapp.gui.main_window import MainWindow
+from workflowapp.gui.ticket_dialog import TicketDialog
 from workflowapp.gui.widgets.status_badge import StatusDelegate
 from workflowapp.gui.widgets.table_view import NO_ROW
-from workflowapp.gui.widgets.ticket_table import Column
+from workflowapp.gui.widgets.ticket_table import TICKET_ID_ROLE, Column
 
 pytestmark = pytest.mark.gui
 
@@ -431,6 +433,112 @@ class TestRowHover:
         window._table._set_hovered_row(0)
         window._table.leaveEvent(QEvent(QEvent.Type.Leave))
         assert window._table.hovered_row() == NO_ROW
+
+
+@pytest.fixture
+def shown(window, qtbot):
+    """The window on screen, which window-level shortcuts need to fire at all."""
+    window.show()
+    qtbot.waitExposed(window)
+    QApplication.processEvents()
+    return window
+
+
+class TestKeyboardShortcuts:
+    def test_ctrl_f_selects_what_is_already_in_the_search_box(self, shown, qtbot):
+        shown._search.setText("fornitore")
+        qtbot.keyClick(shown, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
+        # Asserted on the selection rather than on hasFocus(), which is
+        # unobservable under the offscreen platform. It is also the half that
+        # matters: Ctrl+F on a box that already holds a search means a new
+        # search, so the next keystroke has to replace it, not extend it.
+        assert shown._search.selectedText() == "fornitore"
+
+    def test_esc_clears_every_filter_at_once(self, shown, qtbot):
+        shown._search.setText("fornitore")
+        shown._status_filter.setCurrentIndex(shown._status_filter.findData(Status.URGENT))
+        shown._overdue_check.setChecked(True)
+
+        qtbot.keyClick(shown, Qt.Key.Key_Escape)
+
+        assert shown._search.text() == ""
+        assert shown._status_filter.currentData() is None
+        assert shown._overdue_check.isChecked() is False
+        # The proxy has to have heard about it, not just the widgets: the three
+        # are silenced while they are cleared, so a forgotten _on_filter_changed
+        # leaves an empty filter row over a still-filtered table.
+        assert shown._proxy.rowCount() == 3
+
+    def test_esc_with_nothing_set_changes_nothing(self, shown, qtbot):
+        qtbot.keyClick(shown, Qt.Key.Key_Escape)
+        assert shown._proxy.rowCount() == 3
+        assert shown._search.text() == ""
+
+    def test_f2_opens_the_selected_ticket(self, shown, qtbot, monkeypatch):
+        shown._table.selectRow(0)
+        opened: list[str] = []
+
+        def exec_(self):
+            opened.append(self._ticket.id)
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(TicketDialog, "exec", exec_)
+        qtbot.keyClick(shown, Qt.Key.Key_F2)
+
+        assert opened == [shown.selected_ticket_id()]
+
+    def test_the_edit_tooltip_names_both_ways_in(self, window):
+        assert "Invio" in window.action_edit.toolTip()
+        assert "F2" in window.action_edit.toolTip()
+
+    def test_the_search_box_names_both_its_keys(self, window):
+        tip = window._search.toolTip()
+        assert strings.TOOLTIP_SEARCH in tip
+        assert strings.TOOLTIP_CLEAR_FILTERS in tip
+
+
+class TestContextMenu:
+    @staticmethod
+    def _at_row(window, row: int) -> QPoint:
+        return window._table.visualRect(window._proxy.index(row, int(Column.TITLE))).center()
+
+    @staticmethod
+    def _id_of_row(window, row: int) -> str:
+        return window._proxy.index(row, int(Column.TITLE)).data(TICKET_ID_ROLE)
+
+    def test_it_offers_opening_and_deleting(self, shown):
+        menu = shown._context_menu_at(self._at_row(shown, 0))
+        assert [action.text() for action in menu.actions()] == [
+            strings.ACTION_EDIT,
+            strings.ACTION_DELETE,
+        ]
+
+    def test_right_clicking_a_row_selects_it_first(self, shown):
+        shown._table.selectRow(2)
+        shown._context_menu_at(self._at_row(shown, 0))
+        # Without this the menu acts on whatever was selected before the click,
+        # which is a ticket the user is not pointing at.
+        assert shown.selected_ticket_id() == self._id_of_row(shown, 0)
+
+    def test_the_actions_are_enabled_by_the_time_the_menu_is_built(self, shown):
+        shown._table.clearSelection()
+        menu = shown._context_menu_at(self._at_row(shown, 0))
+        assert all(action.isEnabled() for action in menu.actions())
+
+    def test_empty_space_offers_no_menu(self, shown):
+        # A menu holding nothing but greyed-out entries is worse than no menu.
+        assert shown._context_menu_at(QPoint(5, shown._table.viewport().height() - 1)) is None
+
+    def test_it_acts_on_the_row_under_the_pointer_after_sorting(self, shown, manager):
+        # The proxy invariant, same one as test_deleting_the_right_ticket_after
+        # _sorting: a view row is not a list index, and a menu that confused the
+        # two would delete a different ticket than the one right-clicked.
+        shown._table.sortByColumn(int(Column.TITLE), Qt.SortOrder.AscendingOrder)
+        QApplication.processEvents()
+        shown._context_menu_at(self._at_row(shown, 0))
+        first_by_title = sorted(manager.tickets(), key=lambda t: t.title.casefold())[0]
+        assert shown.selected_ticket_id() == first_by_title.id
+
 
 def _answer(monkeypatch, button_text: str) -> None:
     """Make the next QMessageBox answer with the button carrying this text."""
